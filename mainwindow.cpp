@@ -365,15 +365,43 @@ void MainWindow::on_choseButton_clicked()
 
 void MainWindow::on_convertButton_clicked()
 {
+    QString file1 = ui->firstChanelFileName->text();
+    QString file2 = ui->secondChanelFileName->text();
+    QString file1Name, file2Name, file1Suffix, file2Suffix;
+    if(file1.contains('/'))
+    {
+        QStringList strs = file1.split('/');
+        file1Name = strs[0];
+        file1Suffix = strs[1];
+    }
+    else if(!file1.contains('/')){
+        file1Name = file1;
+    }
+    if(file2.contains('/'))
+    {
+        QStringList strs = file2.split('/');
+        file2Name = strs[0];
+        file2Suffix = strs[1];
+    }
+    else if(!file2.contains('/')){
+        file2Name = file2;
+    }
     QMap<QString, QString> settings;
     settings.insert("STEP", ui->stepComboBox->currentText());
+    settings.insert("inputFile", inDir);
+    settings.insert("outDir", outDir);
+    settings.insert("file1Name", file1Name);
+    settings.insert("file2Name", file2Name);
+    settings.insert("file1Suffix", file1Suffix);
+    settings.insert("file2Suffix", file2Suffix);
+
     worker->setup(settings);
 //    timerF.start();
 //    ui->convertProgress->show();
 //    ui->CurrentWorkTime_2->show();
 //    ui->convertProgress->setValue(0);
-    worker->serupIn(inDir);
-    worker->serupOut(outDir);
+//    worker->serupIn(inDir);
+//    worker->serupOut(outDir);
     thread->start();
 }
 

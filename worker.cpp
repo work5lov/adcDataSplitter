@@ -231,8 +231,8 @@ void Worker::processFile()
             QString fileNameWithoutExtension = fileInfo.baseName();
 
             /// \brief Генерация путей к выходным файлам с уникальными временными метками.
-            QString outFile1Path = outDir + "/ADCch_1_" + fileNameWithoutExtension + ".bin";
-            QString outFile2Path = outDir + "/ADCch_2_" + fileNameWithoutExtension + ".bin";
+            QString outFile1Path = outDir + "/" + outFile1Name + fileNameWithoutExtension + ".bin";
+            QString outFile2Path = outDir + "/" + outFile2Name + fileNameWithoutExtension + ".bin";
 
             /// \brief Создание выходных файлов.
             QFile outFile1(outFile1Path);
@@ -462,8 +462,11 @@ void Worker::setupSubName(QString str)
 
 void Worker::setup(QMap<QString,QString> settings)
 {
+    for (auto i = settings.constBegin(); i != settings.constEnd(); ++i) {
+        qDebug() << "Key:" << i.key() << "Value:" << i.value();
+    }
     STEP = settings["STEP"].toInt();
-    inFilePath = settings["inputFile"];
+    inFilePath1 = settings["inputFile"];
     outDir = settings["outDir"];
     outFile1Name = settings["file1Name"];
     outFile2Name = settings["file2Name"];
