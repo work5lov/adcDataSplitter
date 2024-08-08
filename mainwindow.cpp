@@ -18,6 +18,16 @@ MainWindow::MainWindow(QWidget *parent)
     ui->checkBox->setCheckState(Qt::Checked);
 
     uiTab();
+
+    thread = new QThread();
+    worker = new Worker();
+    worker->moveToThread(thread);
+    connect(thread, &QThread::started, worker, &Worker::processFile);
+    connect(worker, &Worker::finished, this, &MainWindow::handleFinished);
+    connect(worker, &Worker::finished, thread, &QThread::quit);
+    //connect(worker, &Worker::finished, worker, &Worker::deleteLater);
+    //connect(thread, &QThread::finished, thread, &QThread::deleteLater);
+    qRegisterMetaType<QVector<double>>("QVector<double>");
 }
 
 MainWindow::~MainWindow()
@@ -326,3 +336,39 @@ void MainWindow::on_checkBox_stateChanged(int arg1)
     }
 }
 
+
+void MainWindow::on_openButton_clicked()
+{
+    inDir = QFileDialog::getOpenFileName(0,"Выберите файл для открытия","","*.bin");
+    ui->fileDir->setText(inDir);
+    if(ui->checkBox->isChecked()){
+        if (!inDir.isEmpty()) {
+            QFileInfo fileInfo(inDir);
+            QString directory = fileInfo.absolutePath();
+            ui->outDir->setText(directory);
+            qDebug() << "Директория файла:" << directory;
+        }
+    }
+}
+
+void MainWindow::on_choseButton_clicked()
+{
+    outDir = QFileDialog::getExistingDirectory(0," Выберите папку, в которую хотите сохранить проект","");
+    ui->outDir->setText(outDir);
+}
+
+void MainWindow::on_convertButton_clicked()
+{
+    //
+}
+
+/// \brief Обработчик завершения работы потока, отвечающего за обработку файла.
+///
+/// Этот слот вызывается по завершении работы потока и выполняет необходимые действия,
+/// такие как вывод информации о времени выполнения операции, обновление интерфейса и
+/// отображение сообщения о завершении преобразования.
+///
+void MainWindow::handleFinished()
+{
+    //
+}
