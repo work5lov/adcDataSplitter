@@ -33,11 +33,6 @@ MainWindow::MainWindow(QWidget *parent)
     //connect(thread, &QThread::finished, thread, &QThread::deleteLater);
     qRegisterMetaType<QVector<double>>("QVector<double>");
 
-    for (int i = 1; i < 100; ++i) {
-        double stp = 100/i;
-
-        qDebug() << i << stp;
-    }
 }
 
 MainWindow::~MainWindow()
