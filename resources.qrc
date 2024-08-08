@@ -1,0 +1,21 @@
+<RCC>
+    <qresource prefix="/resources">
+        <file>images/close.png</file>
+        <file>images/closeWhite.png</file>
+        <file>images/comboClose.png</file>
+        <file>images/comboOpen .png</file>
+        <file>images/fullWhite.png</file>
+        <file>images/fullWhiteNormal.png</file>
+        <file>images/graphBlue.png</file>
+        <file>images/graphWhite.png</file>
+        <file>images/homeBlue.png</file>
+        <file>images/homeWhite.png</file>
+        <file>images/mainIcon.png</file>
+        <file>images/mainIconNew.png</file>
+        <file>images/rollWhite.png</file>
+        <file>images/settingsBlue.png</file>
+        <file>images/settingsWhite.png</file>
+        <file>images/homeBlack.png</file>
+        <file>images/settingsBlack.png</file>
+    </qresource>
+</RCC>
