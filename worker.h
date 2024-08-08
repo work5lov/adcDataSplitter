@@ -35,6 +35,7 @@ public slots:
     void setupSubName(QString str);
     void serupIn(QString in);
     void serupOut(QString out);
+    void setup(QMap<QString,QString> settings);
 //    double STEP;
 
 signals:
@@ -60,6 +61,10 @@ private:
     QString subN;///< Глобальная переменная для хранения пути к входному файлу
     bool paused;
     bool stopped;
+    QString outFile1Name;
+    QString outFile1Suffix;
+    QString outFile2Name;
+    QString outFile2Suffix;
 };
 
 #endif // WORKER_H

@@ -7,7 +7,7 @@
     <x>0</x>
     <y>0</y>
     <width>750</width>
-    <height>350</height>
+    <height>500</height>
    </rect>
   </property>
   <property name="sizePolicy">
@@ -19,13 +19,13 @@
   <property name="minimumSize">
    <size>
     <width>750</width>
-    <height>350</height>
+    <height>500</height>
    </size>
   </property>
   <property name="maximumSize">
    <size>
     <width>750</width>
-    <height>350</height>
+    <height>500</height>
    </size>
   </property>
   <property name="windowTitle">
@@ -36,7 +36,7 @@
     <item row="0" column="0">
      <widget class="QTabWidget" name="tabWidget">
       <property name="currentIndex">
-       <number>1</number>
+       <number>0</number>
       </property>
       <property name="iconSize">
        <size>
@@ -51,6 +51,13 @@
        <layout class="QGridLayout" name="gridLayout_2">
         <item row="1" column="0" colspan="2">
          <widget class="QLineEdit" name="fileDir"/>
+        </item>
+        <item row="2" column="0">
+         <widget class="QCheckBox" name="checkBox">
+          <property name="text">
+           <string>Использовать директорию исходного файла</string>
+          </property>
+         </widget>
         </item>
         <item row="6" column="0">
          <widget class="QLabel" name="CurrentWorkTime_2">
@@ -88,6 +95,25 @@
           </property>
          </widget>
         </item>
+        <item row="5" column="2">
+         <widget class="QPushButton" name="convertButton">
+          <property name="sizePolicy">
+           <sizepolicy hsizetype="Fixed" vsizetype="Fixed">
+            <horstretch>0</horstretch>
+            <verstretch>0</verstretch>
+           </sizepolicy>
+          </property>
+          <property name="minimumSize">
+           <size>
+            <width>100</width>
+            <height>0</height>
+           </size>
+          </property>
+          <property name="text">
+           <string>Преобразовать</string>
+          </property>
+         </widget>
+        </item>
         <item row="0" column="0">
          <widget class="QLabel" name="label">
           <property name="text">
@@ -108,31 +134,18 @@
           </property>
          </widget>
         </item>
-        <item row="2" column="0">
-         <widget class="QCheckBox" name="checkBox">
-          <property name="text">
-           <string>Использовать директорию исходного файла</string>
+        <item row="7" column="0">
+         <spacer name="verticalSpacer">
+          <property name="orientation">
+           <enum>Qt::Vertical</enum>
           </property>
-         </widget>
-        </item>
-        <item row="5" column="2">
-         <widget class="QPushButton" name="convertButton">
-          <property name="sizePolicy">
-           <sizepolicy hsizetype="Fixed" vsizetype="Fixed">
-            <horstretch>0</horstretch>
-            <verstretch>0</verstretch>
-           </sizepolicy>
-          </property>
-          <property name="minimumSize">
+          <property name="sizeHint" stdset="0">
            <size>
-            <width>100</width>
-            <height>0</height>
+            <width>20</width>
+            <height>40</height>
            </size>
           </property>
-          <property name="text">
-           <string>Преобразовать</string>
-          </property>
-         </widget>
+         </spacer>
         </item>
        </layout>
       </widget>
@@ -147,13 +160,6 @@
            <string>Параметры преобразования</string>
           </property>
           <layout class="QGridLayout" name="gridLayout_3">
-           <item row="1" column="0">
-            <widget class="QLineEdit" name="lineEdit">
-             <property name="text">
-              <string>100</string>
-             </property>
-            </widget>
-           </item>
            <item row="0" column="0">
             <widget class="QLabel" name="label_3">
              <property name="text">
@@ -168,7 +174,114 @@
              </property>
             </widget>
            </item>
+           <item row="1" column="0">
+            <widget class="QComboBox" name="stepComboBox">
+             <item>
+              <property name="text">
+               <string>100</string>
+              </property>
+             </item>
+             <item>
+              <property name="text">
+               <string>50</string>
+              </property>
+             </item>
+             <item>
+              <property name="text">
+               <string>25</string>
+              </property>
+             </item>
+             <item>
+              <property name="text">
+               <string>20</string>
+              </property>
+             </item>
+             <item>
+              <property name="text">
+               <string>10</string>
+              </property>
+             </item>
+             <item>
+              <property name="text">
+               <string>5</string>
+              </property>
+             </item>
+             <item>
+              <property name="text">
+               <string>4</string>
+              </property>
+             </item>
+             <item>
+              <property name="text">
+               <string>2</string>
+              </property>
+             </item>
+             <item>
+              <property name="text">
+               <string>1</string>
+              </property>
+             </item>
+            </widget>
+           </item>
           </layout>
+         </widget>
+        </item>
+        <item row="0" column="1">
+         <widget class="QGroupBox" name="groupBox_3">
+          <property name="title">
+           <string>Параметры нагрузки на ПК</string>
+          </property>
+          <layout class="QGridLayout" name="gridLayout_6">
+           <item row="0" column="0" colspan="2">
+            <widget class="QCheckBox" name="checkBox_2">
+             <property name="text">
+              <string>Использовать стандартные пресеты нагрузки?</string>
+             </property>
+            </widget>
+           </item>
+           <item row="3" column="0" colspan="2">
+            <widget class="QCheckBox" name="minLoad">
+             <property name="text">
+              <string>Минимальная нагрузка</string>
+             </property>
+            </widget>
+           </item>
+           <item row="2" column="0" colspan="2">
+            <widget class="QCheckBox" name="midLoad">
+             <property name="text">
+              <string>Средняя нагрузка</string>
+             </property>
+            </widget>
+           </item>
+           <item row="1" column="0" colspan="2">
+            <widget class="QCheckBox" name="maxLoad">
+             <property name="text">
+              <string>Максимальная янагрузка</string>
+             </property>
+            </widget>
+           </item>
+           <item row="4" column="0" colspan="2">
+            <widget class="QLabel" name="label_7">
+             <property name="text">
+              <string>Число используемых потоков:</string>
+             </property>
+            </widget>
+           </item>
+           <item row="5" column="0" colspan="2">
+            <widget class="QLabel" name="label_8">
+             <property name="text">
+              <string>Объем используемой ОЗУ:</string>
+             </property>
+            </widget>
+           </item>
+          </layout>
+         </widget>
+        </item>
+        <item row="2" column="1">
+         <widget class="QPushButton" name="pushButton">
+          <property name="text">
+           <string>Применить</string>
+          </property>
          </widget>
         </item>
         <item row="1" column="0">
@@ -185,7 +298,11 @@
             </widget>
            </item>
            <item row="1" column="0">
-            <widget class="QLineEdit" name="firstChanelFileName"/>
+            <widget class="QLineEdit" name="firstChanelFileName">
+             <property name="text">
+              <string>ADCch_1_</string>
+             </property>
+            </widget>
            </item>
            <item row="2" column="0">
             <widget class="QLabel" name="label_6">
@@ -195,53 +312,20 @@
             </widget>
            </item>
            <item row="3" column="0">
-            <widget class="QLineEdit" name="secondChanelFileName"/>
-           </item>
-          </layout>
-         </widget>
-        </item>
-        <item row="0" column="1">
-         <widget class="QGroupBox" name="groupBox_3">
-          <property name="title">
-           <string>Параметры нагрузки на ПК</string>
-          </property>
-          <layout class="QGridLayout" name="gridLayout_6">
-           <item row="0" column="0">
-            <widget class="QCheckBox" name="checkBox_2">
+            <widget class="QLineEdit" name="secondChanelFileName">
              <property name="text">
-              <string>Использовать стандартные пресеты нагрузки?</string>
+              <string>ADCch_2_</string>
              </property>
             </widget>
            </item>
-           <item row="2" column="0">
-            <widget class="QCheckBox" name="midLoad">
+           <item row="4" column="0">
+            <widget class="QLabel" name="label_9">
              <property name="text">
-              <string>Средняя нагрузка</string>
-             </property>
-            </widget>
-           </item>
-           <item row="1" column="0">
-            <widget class="QCheckBox" name="maxLoad">
-             <property name="text">
-              <string>Максимальная янагрузка</string>
-             </property>
-            </widget>
-           </item>
-           <item row="3" column="0">
-            <widget class="QCheckBox" name="minLoad">
-             <property name="text">
-              <string>Минимальная нагрузка</string>
+              <string>Через символ &quot;/&quot;  можно добавить суффикс к имени итоговых файлов</string>
              </property>
             </widget>
            </item>
           </layout>
-         </widget>
-        </item>
-        <item row="2" column="1">
-         <widget class="QPushButton" name="pushButton">
-          <property name="text">
-           <string>Применить</string>
-          </property>
          </widget>
         </item>
        </layout>

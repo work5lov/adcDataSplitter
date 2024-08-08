@@ -27,7 +27,7 @@ struct MyData {
 \param[in] fileName Путь к исходному файлу
 \return Список частей типа QByteArray
 */
-QList<QByteArray> readAndSplitFile(const QString& fileName)
+QList<QByteArray> readAndSplitFile(const QString& fileName, int step)
 {
     QElapsedTimer timer;///<
     timer.start();
@@ -44,7 +44,7 @@ QList<QByteArray> readAndSplitFile(const QString& fileName)
     while(!file.atEnd()){
         QByteArray block = file.read(blockSize);///< Читаем блок
         counter++;
-        if(counter%4==0){
+        if(counter%step==0){
             //записываем каждый 10 блок в вектор
             parts.append(block);///< Если значение счетчика кратно 10, то записываем данные в список
 //            qDebug()<<counter;
@@ -148,141 +148,145 @@ size_t calculateOptimalChunkSize(size_t freeMemoryMB, size_t numThreads, size_t 
 */
 void Worker::processFile()
 {
-    /// \brief Вывод информации о директории входного файла.
-    /*qDebug()<<"Директория входного файла"<<inFilePath1;
 
-    /// \brief Проверка существования входного файла.
-    if (!QFile::exists(inFilePath1)) {
-        qDebug() << "Error: Input file does not exist!";
-        return;
+    if(STEP == 100){
+        qDebug()<<"Директория входного файла"<<inFilePath1;
+        /// \brief Проверка существования входного файла.
+        if (!QFile::exists(inFilePath1)) {
+            qDebug() << "Error: Input file does not exist!";
+            return;
+        }
+
+        QFile file(inFilePath1);
+
+        if (!file.open(QIODevice::ReadOnly)) {
+            qWarning() << "Could not open file" << inFilePath1;
+    //        return parts;
+        }
+
+        MEMORYSTATUSEX statex;
+        statex.dwLength = sizeof(statex);
+        DWORDLONG freePhysicalMemory;
+
+        if (GlobalMemoryStatusEx(&statex)) {
+            // Получение объема свободной физической памяти и вывод в мегабайтах
+            freePhysicalMemory = statex.ullAvailPhys;
+    //            std::cout << "Free physical memory: " << freePhysicalMemory  << " MB" << std::endl;
+        } else {
+            std::cerr << "Error getting memory status: " << GetLastError() << std::endl;
+        }
+
+    //        std::cout << "Free physical memory: " << freePhysicalMemory / (1024 * 1024) << " MB" << std::endl;
+
+        static const int THREAD_COUNT = QThread::idealThreadCount();
+    //        std::cout << "Ideal thread count: " << THREAD_COUNT << std::endl;
+        // Делим на 3
+        size_t dividedMemory = freePhysicalMemory / 3;
+
+        // Константа для 1 мегабайта
+        const size_t oneMB = 1024 * 1024;
+
+        // Доводим до ближайшего числа, кратного 1 МБ, в большую сторону
+        size_t adjustedMemory = ((dividedMemory + oneMB - 1) / oneMB) * oneMB;
+
+    //        std::cout << "Free physical memory: " << freePhysicalMemory / (1024 * 1024) << " MB" << std::endl;
+    //        std::cout << "Adjusted memory size: " << adjustedMemory / (1024 * 1024) << " MB" << std::endl;
+    //        std::cout << "Chunk size: " << 6144 / (6144  / (adjustedMemory / (1024 * 1024) / 10)) << " MB" << std::endl;
+
+        size_t freeMemoryMB = adjustedMemory / (1024 * 1024);  // Пример: 6 ГБ свободной памяти
+        size_t numThreads = THREAD_COUNT - 2;       // Пример: 4 потока
+        size_t fileSizeMB = file.size() / (1024 * 1024);   // Пример: 20 ГБ файл
+
+        size_t optimalChunkSizeMB = calculateOptimalChunkSize(freeMemoryMB, numThreads, fileSizeMB);
+
+        size_t partSizeInBytes = optimalChunkSizeMB * 1024 * 1024;  // размер части в байтах
+        size_t readChunkSize = partSizeInBytes * (THREAD_COUNT - 2);  // размер считываемого куска в байтах
+    //    qDebug() << "readChunkSize" << readChunkSize;
+
+        while(!file.atEnd()){
+            /// \brief Инициализация синхронизатора для ожидания завершения выполнения задач.
+            QFutureSynchronizer<void> synchronizer;
+
+            size_t readSize = 1536 ;//1*1024
+
+            QByteArray data = file.read(readSize*1024*1024);
+
+            /// \brief Чтение и разделение входного файла на массив байт.
+            QList<QByteArray> BAlist = readAndSplitFile(data, readSize/10);
+    //        qDebug()<<BAlist.size();
+
+            /// \brief Создание и запуск задачи в фоновом режиме для обработки данных.
+            QFuture<MyData> future = QtConcurrent::mappedReduced(BAlist,partsProcess,reduce);
+            // Дождаться окончания выполнения
+            synchronizer.addFuture(future);
+            synchronizer.waitForFinished();
+
+            /// \brief Получение результата выполнения задачи.
+            const MyData result = future.result();
+
+            /// \brief Создаем объект QFileInfo, используя путь к файлу
+            QFileInfo fileInfo(inFilePath1);
+
+            /// \brief Извлекаем имя файла без расширения
+            QString fileNameWithoutExtension = fileInfo.baseName();
+
+            /// \brief Генерация путей к выходным файлам с уникальными временными метками.
+            QString outFile1Path = outDir + "/ADCch_1_" + fileNameWithoutExtension + ".bin";
+            QString outFile2Path = outDir + "/ADCch_2_" + fileNameWithoutExtension + ".bin";
+
+            /// \brief Создание выходных файлов.
+            QFile outFile1(outFile1Path);
+            QFile outFile2(outFile2Path);
+
+            /// \brief Создание потоков данных для записи в выходные файлы в формате Little Endian.
+            QDataStream outStream1(&outFile1);
+            QDataStream outStream2(&outFile2);
+            outStream1.setByteOrder(QDataStream::LittleEndian);
+            outStream2.setByteOrder(QDataStream::LittleEndian);
+
+            /// \brief Проверка успешного открытия выходного файла 1 для записи.
+            if (!outFile1.open(QIODevice::Append)) {
+                qDebug() << "Error: Failed to open output file 1 for writing!";
+                return;
+            }
+
+            /// \brief Проверка успешного открытия выходного файла 2 для записи.
+            if (!outFile2.open(QIODevice::Append)) {
+                qDebug() << "Error: Failed to open output file 2 for writing!";
+                return;
+            }
+            /// \brief Запись данных в выходные файлы.
+            for (float volts : qAsConst(result.data1)) {
+                outStream1.writeRawData(reinterpret_cast<const char*>(&volts), sizeof(float));
+            }
+            for (float volts : qAsConst(result.data2)) {
+                outStream2.writeRawData(reinterpret_cast<const char*>(&volts), sizeof(float));
+            }
+
+            /// \brief Закрытие выходных файлов.
+            outFile1.close();
+            outFile2.close();
+        }
     }
+    else
+    {
+        /// \brief Вывод информации о директории входного файла.
+        qDebug()<<"Директория входного файла"<<inFilePath1;
 
-    QFile file(inFilePath1);
+        /// \brief Проверка существования входного файла.
+        if (!QFile::exists(inFilePath1)) {
+            qDebug() << "Error: Input file does not exist!";
+            return;
+        }
 
-    /// \brief Инициализация синхронизатора для ожидания завершения выполнения задач.
-    QFutureSynchronizer<void> synchronizer;
+        QFile file(inFilePath1);
 
-    /// \brief Чтение и разделение входного файла на массив байт.
-    QList<QByteArray> BAlist = readAndSplitFile(inFilePath1);
-    qDebug()<<BAlist.size();
-
-    /// \brief Создание и запуск задачи в фоновом режиме для обработки данных.
-    QFuture<MyData> future = QtConcurrent::mappedReduced(BAlist,partsProcess,reduce);
-    // Дождаться окончания выполнения
-    synchronizer.addFuture(future);
-    synchronizer.waitForFinished();
-
-    /// \brief Получение результата выполнения задачи.
-    const MyData result = future.result();
-
-    /// \brief Создаем объект QFileInfo, используя путь к файлу
-    QFileInfo fileInfo(inFilePath1);
-
-    /// \brief Извлекаем имя файла без расширения
-    QString fileNameWithoutExtension = fileInfo.baseName();
-
-    /// \brief Генерация путей к выходным файлам с уникальными временными метками.
-    QString outFile1Path = outDir + "/ADCch_1_" + fileNameWithoutExtension + ".bin";
-    QString outFile2Path = outDir + "/ADCch_2_" + fileNameWithoutExtension + ".bin";
-
-    /// \brief Создание выходных файлов.
-    QFile outFile1(outFile1Path);
-    QFile outFile2(outFile2Path);
-
-    /// \brief Создание потоков данных для записи в выходные файлы в формате Little Endian.
-    QDataStream outStream1(&outFile1);
-    QDataStream outStream2(&outFile2);
-    outStream1.setByteOrder(QDataStream::LittleEndian);
-    outStream2.setByteOrder(QDataStream::LittleEndian);
-
-    /// \brief Проверка успешного открытия выходного файла 1 для записи.
-    if (!outFile1.open(QIODevice::WriteOnly)) {
-        qDebug() << "Error: Failed to open output file 1 for writing!";
-        return;
-    }
-
-    /// \brief Проверка успешного открытия выходного файла 2 для записи.
-    if (!outFile2.open(QIODevice::WriteOnly)) {
-        qDebug() << "Error: Failed to open output file 2 for writing!";
-        return;
-    }
-    /// \brief Запись данных в выходные файлы.
-    for (float volts : qAsConst(result.data1)) {
-        outStream1.writeRawData(reinterpret_cast<const char*>(&volts), sizeof(float));
-    }
-    for (float volts : qAsConst(result.data2)) {
-        outStream2.writeRawData(reinterpret_cast<const char*>(&volts), sizeof(float));
-    }
-
-    /// \brief Закрытие выходных файлов.
-    outFile1.close();
-    outFile2.close();*/
-
-
-    qDebug()<<"Директория входного файла"<<inFilePath1;
-    /// \brief Проверка существования входного файла.
-    if (!QFile::exists(inFilePath1)) {
-        qDebug() << "Error: Input file does not exist!";
-        return;
-    }
-
-    QFile file(inFilePath1);
-
-    if (!file.open(QIODevice::ReadOnly)) {
-        qWarning() << "Could not open file" << inFilePath1;
-//        return parts;
-    }
-
-    MEMORYSTATUSEX statex;
-    statex.dwLength = sizeof(statex);
-    DWORDLONG freePhysicalMemory;
-
-    if (GlobalMemoryStatusEx(&statex)) {
-        // Получение объема свободной физической памяти и вывод в мегабайтах
-        freePhysicalMemory = statex.ullAvailPhys;
-//            std::cout << "Free physical memory: " << freePhysicalMemory  << " MB" << std::endl;
-    } else {
-        std::cerr << "Error getting memory status: " << GetLastError() << std::endl;
-    }
-
-//        std::cout << "Free physical memory: " << freePhysicalMemory / (1024 * 1024) << " MB" << std::endl;
-
-    static const int THREAD_COUNT = QThread::idealThreadCount();
-//        std::cout << "Ideal thread count: " << THREAD_COUNT << std::endl;
-    // Делим на 3
-    size_t dividedMemory = freePhysicalMemory / 3;
-
-    // Константа для 1 мегабайта
-    const size_t oneMB = 1024 * 1024;
-
-    // Доводим до ближайшего числа, кратного 1 МБ, в большую сторону
-    size_t adjustedMemory = ((dividedMemory + oneMB - 1) / oneMB) * oneMB;
-
-//        std::cout << "Free physical memory: " << freePhysicalMemory / (1024 * 1024) << " MB" << std::endl;
-//        std::cout << "Adjusted memory size: " << adjustedMemory / (1024 * 1024) << " MB" << std::endl;
-//        std::cout << "Chunk size: " << 6144 / (6144  / (adjustedMemory / (1024 * 1024) / 10)) << " MB" << std::endl;
-
-    size_t freeMemoryMB = adjustedMemory / (1024 * 1024);  // Пример: 6 ГБ свободной памяти
-    size_t numThreads = THREAD_COUNT - 2;       // Пример: 4 потока
-    size_t fileSizeMB = file.size() / (1024 * 1024);   // Пример: 20 ГБ файл
-
-    size_t optimalChunkSizeMB = calculateOptimalChunkSize(freeMemoryMB, numThreads, fileSizeMB);
-
-    size_t partSizeInBytes = optimalChunkSizeMB * 1024 * 1024;  // размер части в байтах
-    size_t readChunkSize = partSizeInBytes * (THREAD_COUNT - 2);  // размер считываемого куска в байтах
-//    qDebug() << "readChunkSize" << readChunkSize;
-
-    while(!file.atEnd()){
         /// \brief Инициализация синхронизатора для ожидания завершения выполнения задач.
         QFutureSynchronizer<void> synchronizer;
 
-        size_t readSize = 1024;
-
-        QByteArray data = file.read(readSize*1024*1024);
-
         /// \brief Чтение и разделение входного файла на массив байт.
-        QList<QByteArray> BAlist = readAndSplitFile(data, readSize/10);
-//        qDebug()<<BAlist.size();
+        QList<QByteArray> BAlist = readAndSplitFile(inFilePath1, 100/STEP);
+        qDebug()<<BAlist.size();
 
         /// \brief Создание и запуск задачи в фоновом режиме для обработки данных.
         QFuture<MyData> future = QtConcurrent::mappedReduced(BAlist,partsProcess,reduce);
@@ -300,8 +304,8 @@ void Worker::processFile()
         QString fileNameWithoutExtension = fileInfo.baseName();
 
         /// \brief Генерация путей к выходным файлам с уникальными временными метками.
-        QString outFile1Path = outDir + "/ADCch_1_" + fileNameWithoutExtension + ".bin";
-        QString outFile2Path = outDir + "/ADCch_2_" + fileNameWithoutExtension + ".bin";
+        QString outFile1Path = outDir + "/" + outFile1Name + fileNameWithoutExtension + ".bin";
+        QString outFile2Path = outDir + "/" + outFile2Name + fileNameWithoutExtension + ".bin";
 
         /// \brief Создание выходных файлов.
         QFile outFile1(outFile1Path);
@@ -314,13 +318,13 @@ void Worker::processFile()
         outStream2.setByteOrder(QDataStream::LittleEndian);
 
         /// \brief Проверка успешного открытия выходного файла 1 для записи.
-        if (!outFile1.open(QIODevice::Append)) {
+        if (!outFile1.open(QIODevice::WriteOnly)) {
             qDebug() << "Error: Failed to open output file 1 for writing!";
             return;
         }
 
         /// \brief Проверка успешного открытия выходного файла 2 для записи.
-        if (!outFile2.open(QIODevice::Append)) {
+        if (!outFile2.open(QIODevice::WriteOnly)) {
             qDebug() << "Error: Failed to open output file 2 for writing!";
             return;
         }
@@ -454,4 +458,15 @@ void Worker::setupMode(QString str)
 void Worker::setupSubName(QString str)
 {
     subN = str;
+}
+
+void Worker::setup(QMap<QString,QString> settings)
+{
+    STEP = settings["STEP"].toInt();
+    inFilePath = settings["inputFile"];
+    outDir = settings["outDir"];
+    outFile1Name = settings["file1Name"];
+    outFile2Name = settings["file2Name"];
+    outFile1Suffix = settings["file1Suffix"];
+    outFile2Suffix = settings["file2Suffix"];
 }

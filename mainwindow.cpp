@@ -1,6 +1,9 @@
 #include "mainwindow.h"
 #include "./ui_mainwindow.h"
 
+/// \brief Таймер для измерения времени выполнения функций.
+QElapsedTimer timerF;
+
 MainWindow::MainWindow(QWidget *parent)
     : QMainWindow(parent)
     , ui(new Ui::MainWindow)
@@ -16,6 +19,7 @@ MainWindow::MainWindow(QWidget *parent)
     ui->CurrentWorkTime_2->hide();
 
     ui->checkBox->setCheckState(Qt::Checked);
+    ui->checkBox_2->setCheckState(Qt::Checked);
 
     uiTab();
 
@@ -28,6 +32,12 @@ MainWindow::MainWindow(QWidget *parent)
     //connect(worker, &Worker::finished, worker, &Worker::deleteLater);
     //connect(thread, &QThread::finished, thread, &QThread::deleteLater);
     qRegisterMetaType<QVector<double>>("QVector<double>");
+
+    for (int i = 1; i < 100; ++i) {
+        double stp = 100/i;
+
+        qDebug() << i << stp;
+    }
 }
 
 MainWindow::~MainWindow()
@@ -346,6 +356,7 @@ void MainWindow::on_openButton_clicked()
             QFileInfo fileInfo(inDir);
             QString directory = fileInfo.absolutePath();
             ui->outDir->setText(directory);
+            outDir = directory;
             qDebug() << "Директория файла:" << directory;
         }
     }
@@ -359,7 +370,16 @@ void MainWindow::on_choseButton_clicked()
 
 void MainWindow::on_convertButton_clicked()
 {
-    //
+    QMap<QString, QString> settings;
+    settings.insert("STEP", ui->stepComboBox->currentText());
+    worker->setup(settings);
+//    timerF.start();
+//    ui->convertProgress->show();
+//    ui->CurrentWorkTime_2->show();
+//    ui->convertProgress->setValue(0);
+    worker->serupIn(inDir);
+    worker->serupOut(outDir);
+    thread->start();
 }
 
 /// \brief Обработчик завершения работы потока, отвечающего за обработку файла.
@@ -370,5 +390,5 @@ void MainWindow::on_convertButton_clicked()
 ///
 void MainWindow::handleFinished()
 {
-    //
+//    qDebug() << "The slow operation took" << timerF.elapsed() << "milliseconds";
 }
