@@ -160,20 +160,6 @@
            <string>Параметры преобразования</string>
           </property>
           <layout class="QGridLayout" name="gridLayout_3">
-           <item row="0" column="0">
-            <widget class="QLabel" name="label_3">
-             <property name="text">
-              <string>Доля итогового файла от размера исходного файла(%)</string>
-             </property>
-            </widget>
-           </item>
-           <item row="2" column="0">
-            <widget class="QLabel" name="label_4">
-             <property name="text">
-              <string>(по умолчанию 100%)</string>
-             </property>
-            </widget>
-           </item>
            <item row="1" column="0">
             <widget class="QComboBox" name="stepComboBox">
              <item>
@@ -221,6 +207,41 @@
                <string>1</string>
               </property>
              </item>
+            </widget>
+           </item>
+           <item row="4" column="0">
+            <widget class="QComboBox" name="comboBox">
+             <item>
+              <property name="text">
+               <string>Двоичный файл (.bin)</string>
+              </property>
+             </item>
+             <item>
+              <property name="text">
+               <string>Текстовый файл (.txt)</string>
+              </property>
+             </item>
+            </widget>
+           </item>
+           <item row="0" column="0">
+            <widget class="QLabel" name="label_3">
+             <property name="text">
+              <string>Доля итогового файла от размера исходного файла(%)</string>
+             </property>
+            </widget>
+           </item>
+           <item row="2" column="0">
+            <widget class="QLabel" name="label_4">
+             <property name="text">
+              <string>(по умолчанию 100%)</string>
+             </property>
+            </widget>
+           </item>
+           <item row="3" column="0">
+            <widget class="QLabel" name="label_10">
+             <property name="text">
+              <string>Формат выхлдных файлов</string>
+             </property>
             </widget>
            </item>
           </layout>
