@@ -33,6 +33,8 @@ MainWindow::MainWindow(QWidget *parent)
     //connect(thread, &QThread::finished, thread, &QThread::deleteLater);
     qRegisterMetaType<QVector<double>>("QVector<double>");
 
+    loadSettings();
+
 }
 
 MainWindow::~MainWindow()
@@ -136,7 +138,7 @@ void MainWindow::uiTab()
       "    background-color: white;"
 //      "    border-width: 2px;"
       "    border: 1px solid;"
-      "    border-color: black;"
+      "    border-color: blue;"
       "    color: black;"
 //          "    padding: 10px 20px;"
       "    text-align: center;"
@@ -156,7 +158,7 @@ void MainWindow::uiTab()
     "QLineEdit {"
 //          "    padding: 10px;"
     "    border: 1px solid;"
-    "border-color: black;"
+    "border-color: blue;"
     "    font-size: 16px;"
     "    border-radius: 5px;"
 //                  "background-color: rgba(255, 255, 255, 100);"
@@ -187,7 +189,7 @@ void MainWindow::uiTab()
         "font-family: Trebuchet MS, sans-serif;"
     "}"
     "QComboBox:hover { "
-      "border: 1px solid blue; "
+      "border: 1px solid gray; "
     "}"
     "QComboBox::drop-down {"
         "subcontrol-origin: padding;"
@@ -202,14 +204,14 @@ void MainWindow::uiTab()
         "background-color: white;"
     "}"
     "QComboBox::down-arrow {"
-        "image: url(:/resouces/images/comboOpen .png);"
+        "image: url(:/resources/images/comboOpen .png);"
     "}"
     "QComboBox::down-arrow:hover {"
-//            "image: url(:/resouces/images/settingsBlue.png);"
+//            "image: url(:/resoruces/images/settingsBlue.png);"
 //        "   background-color: qrgba(211, 211, 211, 128);"
     "}"
     "QComboBox::down-arrow:on {"
-        "image: url(:/resouces/images/comboClose.png);"
+        "image: url(:/resources/images/comboClose.png);"
     "}"
     "QComboBox QAbstractItemView {"
         "border: 1px solid blue;"
@@ -331,13 +333,15 @@ void MainWindow::on_checkBox_stateChanged(int arg1)
     {
         ui->choseButton->setEnabled(true);
         ui->outDir->setEnabled(true);
-        ui->outDir->setStyleSheet("background-color: white;");
+        ui->outDir->setStyleSheet("background-color: white; border-color: blue;");
+        ui->choseButton->setStyleSheet("background-color: white; border-color: blue;");
     }
     else
     {
         ui->choseButton->setEnabled(false);
         ui->outDir->setEnabled(false);
-        ui->outDir->setStyleSheet("background-color: gray;");
+        ui->outDir->setStyleSheet("background-color: gray; border-color: gray;");
+        ui->choseButton->setStyleSheet("background-color: gray; border-color: gray;");
     }
 }
 
@@ -414,4 +418,147 @@ void MainWindow::on_convertButton_clicked()
 void MainWindow::handleFinished()
 {
 //    qDebug() << "The slow operation took" << timerF.elapsed() << "milliseconds";
+}
+
+/// \brief Обработчик события закрытия окна.
+///
+/// Обработчик события закрытия окна сохраняет настройки программы и завершает работу приложения.
+///
+/// \param event - событие закрытия окна.
+///
+void MainWindow::closeEvent(QCloseEvent *event)
+{
+    saveSettings(); // Сохранение настроек программы
+//    qDebug() << "Программа закрыта";
+    event->accept();
+}
+
+/// \brief Сохранение настроек программы в файл JSON.
+///
+/// Функция сохраняет текущие значения QComboBox, QLineEdit и QCheckBox в файл JSON,
+/// а также информацию о положении окна, его размере, номере монитора и режиме полноэкранного отображения.
+void MainWindow::saveSettings()
+{
+    QString fileName = "settings.json";
+
+    // Создаем QJsonObject для хранения данных QComboBox, QLineEdit и QCheckBox
+    QJsonObject comboBoxData;
+    QJsonObject lineEditData;
+    QJsonObject checkBoxData;
+
+    // Получаем список всех виджетов на вкладке настроек
+    QList<QWidget*> widgets = ui->settingsTab->findChildren<QWidget*>();
+
+    for (int i = 0; i < widgets.size(); ++i) {
+        // Проверяем, является ли текущий виджет объектом QComboBox
+        if (QComboBox* comboBox = qobject_cast<QComboBox*>(widgets[i])) {
+            // Добавляем данные в QJsonObject для QComboBox
+            comboBoxData[comboBox->objectName()] = comboBox->currentText();
+        }
+
+        // Проверяем, является ли текущий виджет объектом QLineEdit
+        if (QLineEdit* lineEdit = qobject_cast<QLineEdit*>(widgets[i])) {
+            // Добавляем данные в QJsonObject для QLineEdit
+            lineEditData[lineEdit->objectName()] = lineEdit->text();
+        }
+
+        // Проверяем, является ли текущий виджет объектом QCheckBox
+        if (QCheckBox* checkBox = qobject_cast<QCheckBox*>(widgets[i])) {
+            // Добавляем данные в QJsonObject для QCheckBox
+            checkBoxData[checkBox->objectName()] = checkBox->isChecked();
+        }
+    }
+
+    // Создаем общий QJsonObject для всех данных
+    QJsonObject allData;
+    allData["ComboBoxData"] = comboBoxData;
+    allData["LineEditData"] = lineEditData;
+    allData["CheckBoxData"] = checkBoxData;
+
+    // Записываем данные в файл JSON
+    QFile file(fileName);
+    if (file.open(QIODevice::WriteOnly | QIODevice::Text)) {
+        QTextStream out(&file);
+
+        // Преобразуем QJsonObject в QJsonDocument и записываем в файл
+        QJsonDocument jsonDocument(allData);
+        out << jsonDocument.toJson();
+
+        file.close();
+    }
+}
+
+/// \brief Загрузка настроек программы из файла JSON.
+///
+/// Функция загружает значения виджетов из файла JSON и устанавливает их в соответствующие виджеты.
+///
+void MainWindow::loadSettings()
+{
+    QString fileName = "settings.json";
+
+    QFile file(fileName);
+
+    if (file.open(QIODevice::ReadOnly | QIODevice::Text)) {
+
+        QByteArray jsonData = file.readAll();
+        QString jsonString = QString::fromLocal8Bit(jsonData);
+        qDebug() << jsonString;
+        file.close();
+
+        QJsonDocument jsonDocument = QJsonDocument::fromJson(jsonString.toUtf8());
+
+        if (jsonDocument.isNull()) {
+            qDebug() << "Ошибка: JSON-документ не удалось распарсить.";
+        }
+
+        // Получение QJsonObject из QJsonDocument
+        QJsonObject allData = jsonDocument.object();
+
+        // Преобразуем JSON в строку для вывода в консоль
+        QString jsonString1 = jsonDocument.toJson(QJsonDocument::Indented);
+
+        // Выводим содержимое JSON в консоль
+        qDebug() << jsonString1;
+
+        // Загрузка данных для QComboBox и установка их в виджеты
+        QJsonObject comboBoxData = allData["ComboBoxData"].toObject();
+        for (auto it = comboBoxData.begin(); it != comboBoxData.end(); ++it) {
+            QString comboBoxName = it.key();
+            QString comboBoxText = it.value().toString();
+
+            // Поиск виджета QComboBox по имени
+            QComboBox* comboBox = ui->settingsTab->findChild<QComboBox*>(comboBoxName);
+            if (comboBox) {
+                comboBox->setCurrentText(comboBoxText);
+            }
+        }
+
+        // Загрузка данных для QLineEdit и установка их в виджеты
+        QJsonObject lineEditData = allData["LineEditData"].toObject();
+        for (auto it = lineEditData.begin(); it != lineEditData.end(); ++it) {
+            QString lineEditName = it.key();
+            QString lineEditText = it.value().toString();
+
+            // Поиск виджета QLineEdit по имени
+            QLineEdit* lineEdit = ui->settingsTab->findChild<QLineEdit*>(lineEditName);
+            if (lineEdit) {
+                lineEdit->setText(lineEditText);
+            }
+        }
+
+        // Загрузка данных для QCheckBox и установка их в виджеты
+        QJsonObject checkBoxData = allData["CheckBoxData"].toObject();
+        for (auto it = checkBoxData.begin(); it != checkBoxData.end(); ++it) {
+            QString checkBoxName = it.key();
+            bool checkBoxChecked = it.value().toBool();
+
+            // Поиск виджета QCheckBox по имени
+            QCheckBox* checkBox = ui->settingsTab->findChild<QCheckBox*>(checkBoxName);
+            if (checkBox) {
+                checkBox->setChecked(checkBoxChecked);
+            }
+        }
+    }
+
+    // qDebug() << "Настройки загружены!";
 }

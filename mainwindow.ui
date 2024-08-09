@@ -318,31 +318,31 @@
              </property>
             </widget>
            </item>
-           <item row="1" column="0">
-            <widget class="QLineEdit" name="firstChanelFileName">
+           <item row="4" column="0">
+            <widget class="QLineEdit" name="secondChanelFileName">
              <property name="text">
-              <string>ADCch_1_</string>
+              <string/>
              </property>
             </widget>
            </item>
-           <item row="2" column="0">
+           <item row="5" column="0">
+            <widget class="QLabel" name="label_9">
+             <property name="text">
+              <string>Через символ &quot;/&quot;  можно добавить суффикс к имени итоговых файлов</string>
+             </property>
+            </widget>
+           </item>
+           <item row="3" column="0">
             <widget class="QLabel" name="label_6">
              <property name="text">
               <string>Имя файла второго канала</string>
              </property>
             </widget>
            </item>
-           <item row="3" column="0">
-            <widget class="QLineEdit" name="secondChanelFileName">
+           <item row="2" column="0">
+            <widget class="QLineEdit" name="firstChanelFileName">
              <property name="text">
-              <string>ADCch_2_</string>
-             </property>
-            </widget>
-           </item>
-           <item row="4" column="0">
-            <widget class="QLabel" name="label_9">
-             <property name="text">
-              <string>Через символ &quot;/&quot;  можно добавить суффикс к имени итоговых файлов</string>
+              <string/>
              </property>
             </widget>
            </item>

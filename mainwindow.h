@@ -23,6 +23,8 @@
 #include <complex>
 #include <QElapsedTimer>
 #include <QMetaType>
+#include <QCloseEvent>
+#include <QJsonDocument>
 
 #include "worker.h"
 
@@ -47,14 +49,14 @@ private slots:
     void paintEvent(QPaintEvent *event);
     void uiTab();
 
+    void closeEvent(QCloseEvent *event);
+    void saveSettings();
+    void loadSettings();
+
     void on_tabWidget_tabBarClicked(int index);
-
     void on_checkBox_stateChanged(int arg1);
-
     void on_openButton_clicked();
-
     void on_choseButton_clicked();
-
     void on_convertButton_clicked();
 
 private:
