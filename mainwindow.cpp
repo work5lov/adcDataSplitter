@@ -15,11 +15,18 @@ MainWindow::MainWindow(QWidget *parent)
     QIcon settingsIconPassive(":/resources/images/settingsBlack.png");
     ui->tabWidget->setTabIcon(0, homeIconActive);
     ui->tabWidget->setTabIcon(1, settingsIconPassive);
+    ui->convertProgress->hide();
+
+    // Установка иконки приложения
+    QIcon mainIcon(":/resources/images/mainIcon.png");
+    this->setWindowIcon(mainIcon);
 
     ui->CurrentWorkTime_2->hide();
 
     ui->checkBox->setCheckState(Qt::Checked);
     ui->checkBox_2->setCheckState(Qt::Checked);
+
+    ui->fileDir->setAcceptDrops(true);
 
     uiTab();
 
@@ -29,9 +36,12 @@ MainWindow::MainWindow(QWidget *parent)
     connect(thread, &QThread::started, worker, &Worker::processFile);
     connect(worker, &Worker::finished, this, &MainWindow::handleFinished);
     connect(worker, &Worker::finished, thread, &QThread::quit);
+    connect(worker, &Worker::progress, this, &MainWindow::setProgressValue);
     //connect(worker, &Worker::finished, worker, &Worker::deleteLater);
     //connect(thread, &QThread::finished, thread, &QThread::deleteLater);
     qRegisterMetaType<QVector<double>>("QVector<double>");
+
+    connect(&progressUpdater, SIGNAL( timeout()), SLOT( updateProgressBar() ) );
 
     loadSettings();
 
@@ -399,13 +409,25 @@ void MainWindow::on_convertButton_clicked()
     settings.insert("file1Suffix", file1Suffix);
     settings.insert("file2Suffix", file2Suffix);
 
+    QString fullString;
+
+    if(ui->comboBox->currentIndex()==0){
+        fullString = "bin";
+    }
+    else{
+        fullString = "txt";
+    }
+
+    settings.insert("format", fullString);
+
     worker->setup(settings);
-//    timerF.start();
-//    ui->convertProgress->show();
+    timerF.start();
+    ui->convertProgress->show();
 //    ui->CurrentWorkTime_2->show();
-//    ui->convertProgress->setValue(0);
+    ui->convertProgress->setValue(0);
 //    worker->serupIn(inDir);
 //    worker->serupOut(outDir);
+    progressUpdater.start(500);
     thread->start();
 }
 
@@ -417,7 +439,15 @@ void MainWindow::on_convertButton_clicked()
 ///
 void MainWindow::handleFinished()
 {
-//    qDebug() << "The slow operation took" << timerF.elapsed() << "milliseconds";
+    qDebug() << "The slow operation took" << timerF.elapsed() << "milliseconds";
+    progressUpdater.stop();
+}
+
+void MainWindow::updateProgressBar()
+{
+    size_t data = worker->getProcessProgress();
+    qDebug() << data;
+    ui->convertProgress->setValue(data);
 }
 
 /// \brief Обработчик события закрытия окна.
@@ -502,7 +532,7 @@ void MainWindow::loadSettings()
 
         QByteArray jsonData = file.readAll();
         QString jsonString = QString::fromLocal8Bit(jsonData);
-        qDebug() << jsonString;
+//        qDebug() << jsonString;
         file.close();
 
         QJsonDocument jsonDocument = QJsonDocument::fromJson(jsonString.toUtf8());
@@ -518,7 +548,7 @@ void MainWindow::loadSettings()
         QString jsonString1 = jsonDocument.toJson(QJsonDocument::Indented);
 
         // Выводим содержимое JSON в консоль
-        qDebug() << jsonString1;
+//        qDebug() << jsonString1;
 
         // Загрузка данных для QComboBox и установка их в виджеты
         QJsonObject comboBoxData = allData["ComboBoxData"].toObject();
@@ -561,4 +591,8 @@ void MainWindow::loadSettings()
     }
 
     // qDebug() << "Настройки загружены!";
+}
+
+void MainWindow::setProgressValue(int value){
+    ui->convertProgress->setValue(value);
 }

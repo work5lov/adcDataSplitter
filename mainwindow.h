@@ -40,9 +40,12 @@ public:
     MainWindow(QWidget *parent = nullptr);
     ~MainWindow();
 
+
 public slots:
 
+    void setProgressValue(int value);
     void handleFinished();
+    void updateProgressBar();
 
 private slots:
 
@@ -67,5 +70,9 @@ private:
 
     QString inDir;
     QString outDir;
+
+    size_t inFileSize;
+
+    QTimer progressUpdater;
 };
 #endif // MAINWINDOW_H

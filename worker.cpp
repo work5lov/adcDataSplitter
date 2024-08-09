@@ -10,17 +10,26 @@
 
 Worker::Worker(){
 //    connect(this, SIGNAL(setFileIn(QString)), this, SLOT(serupIn(QString)));
-//    connect(this, SIGNAL(setFileOut(QString)), this, SLOT(serupOut(QString)));
+    //    connect(this, SIGNAL(setFileOut(QString)), this, SLOT(serupOut(QString)));
 }
 
 QString inFilePath1; ///< Глобальная переменная для хранения пути к входному файлу
+size_t readedData = 0;
+size_t totalSize;
+
+size_t Worker::getProcessProgress()
+{
+    qDebug() << readedData << totalSize << (readedData * 100 )/ totalSize << (readedData / totalSize) * 100;
+    return static_cast<int>((static_cast<double>(readedData) / totalSize) * 100);
+}
+
 
 /// Структура для сохранения обработанных данных АЦП
-struct MyData {
-    QVector<float> data1; ///< Данные с первого канала АПЦ
-    QVector<float> data2; ///< Данные со второго канала АПЦ
-    typedef QList<float>::const_iterator const_iterator; ///< Итератор
-};
+//struct MyData {
+//    QVector<float> data1; ///< Данные с первого канала АПЦ
+//    QVector<float> data2; ///< Данные со второго канала АПЦ
+//    typedef QList<float>::const_iterator const_iterator; ///< Итератор
+//};
 
 /*!
 \brief Разделяет исходный файл на части
@@ -46,6 +55,7 @@ QList<QByteArray> readAndSplitFile(const QString& fileName, int step)
         counter++;
         if(counter%step==0){
             //записываем каждый 10 блок в вектор
+//            readedData = counter * 1024;
             parts.append(block);///< Если значение счетчика кратно 10, то записываем данные в список
 //            qDebug()<<counter;
         }
@@ -97,8 +107,12 @@ QList<QByteArray> readAndSplitFile(const QByteArray &data, int partSizeInMB) {
 */
 MyData partsProcess(const QByteArray &chunk){
     MyData d_out;
+    readedData += chunk.size();
     for (int i = 0; i < chunk.size(); i += 4) {///< Читаем по 4 байта
         // Extract the two 2-byte values from the chunk
+
+//        qDebug() << readedData << totalSize << readedData/totalSize;
+//        Worker::progress(readedData/totalSize);
         int val1 = (chunk.at(i) << 8) | chunk.at(i + 1);
         int val2 = (chunk.at(i + 2) << 8) | chunk.at(i + 3);
         val1 = val1 & 0x00000000000ffff;
@@ -148,7 +162,6 @@ size_t calculateOptimalChunkSize(size_t freeMemoryMB, size_t numThreads, size_t 
 */
 void Worker::processFile()
 {
-
     if(STEP == 100){
         qDebug()<<"Директория входного файла"<<inFilePath1;
         /// \brief Проверка существования входного файла.
@@ -197,6 +210,8 @@ void Worker::processFile()
         size_t numThreads = THREAD_COUNT - 2;       // Пример: 4 потока
         size_t fileSizeMB = file.size() / (1024 * 1024);   // Пример: 20 ГБ файл
 
+        totalSize = file.size();
+
         size_t optimalChunkSizeMB = calculateOptimalChunkSize(freeMemoryMB, numThreads, fileSizeMB);
 
         size_t partSizeInBytes = optimalChunkSizeMB * 1024 * 1024;  // размер части в байтах
@@ -207,7 +222,9 @@ void Worker::processFile()
             /// \brief Инициализация синхронизатора для ожидания завершения выполнения задач.
             QFutureSynchronizer<void> synchronizer;
 
-            size_t readSize = 1536 ;//1*1024
+            size_t readSize = 512 ;//1*1024
+
+//            progress(fileSizeMB);
 
             QByteArray data = file.read(readSize*1024*1024);
 
@@ -224,6 +241,13 @@ void Worker::processFile()
             /// \brief Получение результата выполнения задачи.
             const MyData result = future.result();
 
+            // Вычисление текущего прогресса
+            /*qint64 processedSize = file.pos(); // Размер уже обработанных данных
+            int progressT = static_cast<int>((static_cast<double>(processedSize) / totalSize) * 100);
+
+            // Обновление прогресса
+            emit progress(progressT)*/;
+
             /// \brief Создаем объект QFileInfo, используя путь к файлу
             QFileInfo fileInfo(inFilePath1);
 
@@ -231,8 +255,8 @@ void Worker::processFile()
             QString fileNameWithoutExtension = fileInfo.baseName();
 
             /// \brief Генерация путей к выходным файлам с уникальными временными метками.
-            QString outFile1Path = outDir + "/" + outFile1Name + fileNameWithoutExtension + ".bin";
-            QString outFile2Path = outDir + "/" + outFile2Name + fileNameWithoutExtension + ".bin";
+            QString outFile1Path = outDir + "/" + outFile1Name + fileNameWithoutExtension + "." + format;
+            QString outFile2Path = outDir + "/" + outFile2Name + fileNameWithoutExtension + "." + format;
 
             /// \brief Создание выходных файлов.
             QFile outFile1(outFile1Path);
@@ -256,11 +280,38 @@ void Worker::processFile()
                 return;
             }
             /// \brief Запись данных в выходные файлы.
-            for (float volts : qAsConst(result.data1)) {
-                outStream1.writeRawData(reinterpret_cast<const char*>(&volts), sizeof(float));
-            }
-            for (float volts : qAsConst(result.data2)) {
-                outStream2.writeRawData(reinterpret_cast<const char*>(&volts), sizeof(float));
+            if (format == "bin") {
+                // Запись в бинарные файлы с использованием QDataStream
+                QDataStream outStream1(&outFile1);
+                QDataStream outStream2(&outFile2);
+
+                outStream1.setByteOrder(QDataStream::LittleEndian);
+                outStream2.setByteOrder(QDataStream::LittleEndian);
+
+                for (float volts : qAsConst(result.data1)) {
+                    outStream1.writeRawData(reinterpret_cast<const char*>(&volts), sizeof(float));
+                }
+
+                for (float volts : qAsConst(result.data2)) {
+                    outStream2.writeRawData(reinterpret_cast<const char*>(&volts), sizeof(float));
+                }
+            } else {
+                // Запись в текстовые файлы с использованием QTextStream
+                QTextStream outStream1(&outFile1);
+                QTextStream outStream2(&outFile2);
+
+
+                for (float volts : qAsConst(result.data1)) {
+                    outStream1 << volts << "\n";
+                }
+
+                outFile1.flush();
+
+                for (float volts : qAsConst(result.data2)) {
+                    outStream2 << volts << "\n";
+                }
+
+                outFile1.flush();
             }
 
             /// \brief Закрытие выходных файлов.
@@ -280,6 +331,8 @@ void Worker::processFile()
         }
 
         QFile file(inFilePath1);
+
+        totalSize = file.size();
 
         /// \brief Инициализация синхронизатора для ожидания завершения выполнения задач.
         QFutureSynchronizer<void> synchronizer;
@@ -304,8 +357,8 @@ void Worker::processFile()
         QString fileNameWithoutExtension = fileInfo.baseName();
 
         /// \brief Генерация путей к выходным файлам с уникальными временными метками.
-        QString outFile1Path = outDir + "/" + outFile1Name + fileNameWithoutExtension + ".bin";
-        QString outFile2Path = outDir + "/" + outFile2Name + fileNameWithoutExtension + ".bin";
+        QString outFile1Path = outDir + "/" + outFile1Name + fileNameWithoutExtension + "." + format;
+        QString outFile2Path = outDir + "/" + outFile2Name + fileNameWithoutExtension + "." + format;
 
         /// \brief Создание выходных файлов.
         QFile outFile1(outFile1Path);
@@ -329,11 +382,37 @@ void Worker::processFile()
             return;
         }
         /// \brief Запись данных в выходные файлы.
-        for (float volts : qAsConst(result.data1)) {
-            outStream1.writeRawData(reinterpret_cast<const char*>(&volts), sizeof(float));
-        }
-        for (float volts : qAsConst(result.data2)) {
-            outStream2.writeRawData(reinterpret_cast<const char*>(&volts), sizeof(float));
+        if (format == "bin") {
+            // Запись в бинарные файлы с использованием QDataStream
+            QDataStream outStream1(&outFile1);
+            QDataStream outStream2(&outFile2);
+
+            outStream1.setByteOrder(QDataStream::LittleEndian);
+            outStream2.setByteOrder(QDataStream::LittleEndian);
+
+            for (float volts : qAsConst(result.data1)) {
+                outStream1.writeRawData(reinterpret_cast<const char*>(&volts), sizeof(float));
+            }
+
+            for (float volts : qAsConst(result.data2)) {
+                outStream2.writeRawData(reinterpret_cast<const char*>(&volts), sizeof(float));
+            }
+        } else {
+            // Запись в текстовые файлы с использованием QTextStream
+            QTextStream outStream1(&outFile1);
+            QTextStream outStream2(&outFile2);
+
+            for (float volts : qAsConst(result.data1)) {
+                outStream1 << volts << "\n";
+            }
+
+            outFile1.flush();
+
+            for (float volts : qAsConst(result.data2)) {
+                outStream2 << volts << "\n";
+            }
+
+            outFile1.flush();
         }
 
         /// \brief Закрытие выходных файлов.
@@ -342,6 +421,7 @@ void Worker::processFile()
     }
 
     /// \brief Сигнал о завершении выполнения операции.
+    readedData = 0;
     emit finished();
 }
 
@@ -472,4 +552,9 @@ void Worker::setup(QMap<QString,QString> settings)
     outFile2Name = settings["file2Name"];
     outFile1Suffix = settings["file1Suffix"];
     outFile2Suffix = settings["file2Suffix"];
+    format = settings["format"];
+}
+
+void Worker::setProgress(int data){
+//    progress(data);
 }

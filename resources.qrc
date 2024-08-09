@@ -10,12 +10,11 @@
         <file>images/graphWhite.png</file>
         <file>images/homeBlue.png</file>
         <file>images/homeWhite.png</file>
-        <file>images/mainIcon.png</file>
-        <file>images/mainIconNew.png</file>
         <file>images/rollWhite.png</file>
         <file>images/settingsBlue.png</file>
         <file>images/settingsWhite.png</file>
         <file>images/homeBlack.png</file>
         <file>images/settingsBlack.png</file>
+        <file>images/mainIcon.png</file>
     </qresource>
 </RCC>

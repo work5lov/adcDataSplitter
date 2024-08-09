@@ -17,6 +17,11 @@
 #include <QtConcurrent>
 #include "functions.h"
 
+struct MyData {
+    QVector<float> data1; ///< Данные с первого канала АПЦ
+    QVector<float> data2; ///< Данные со второго канала АПЦ
+    typedef QList<float>::const_iterator const_iterator; ///< Итератор
+};
 
 class Worker : public QObject
 {
@@ -24,6 +29,7 @@ class Worker : public QObject
 
 public:
     Worker();
+    size_t getProcessProgress();
     //double STEP;
 
 public slots:
@@ -36,6 +42,7 @@ public slots:
     void serupIn(QString in);
     void serupOut(QString out);
     void setup(QMap<QString,QString> settings);
+//    MyData partsProcess(const QByteArray &chunk);
 //    double STEP;
 
 signals:
@@ -65,6 +72,9 @@ private:
     QString outFile1Suffix;
     QString outFile2Name;
     QString outFile2Suffix;
+    QString format;
+
+    static void setProgress(int data);
 };
 
 #endif // WORKER_H
