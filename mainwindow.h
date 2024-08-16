@@ -26,6 +26,16 @@
 #include <QCloseEvent>
 #include <QJsonDocument>
 
+#include <QFutureWatcher>
+#include <QtConcurrent>
+#include <QAtomicInt>
+#include <QMutex>
+#include <QMutexLocker>
+#include <QProgressDialog>
+#include <QProgressBar>
+#include <windows.h>
+#include <iostream>
+
 #include "worker.h"
 
 QT_BEGIN_NAMESPACE
@@ -44,8 +54,13 @@ public:
 public slots:
 
     void setProgressValue(int value);
+    void setRange(int min, int max);
     void handleFinished();
     void updateProgressBar();
+    void onProcessingFinished();
+    void onReadingProgressUpdated(int value);
+    void onProcessingProgressUpdated(int value);
+    void onWorkComplete();
 
 private slots:
 
@@ -74,5 +89,7 @@ private:
     size_t inFileSize;
 
     QTimer progressUpdater;
+
+    QProgressDialog *progressDialog;
 };
 #endif // MAINWINDOW_H

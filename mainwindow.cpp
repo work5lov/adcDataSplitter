@@ -32,16 +32,38 @@ MainWindow::MainWindow(QWidget *parent)
 
     thread = new QThread();
     worker = new Worker();
+
+    connect(worker, &Worker::progress, this, &MainWindow::setProgressValue);
+    connect(worker, &Worker::range, this, &MainWindow::setRange);
+    connect(worker, &Worker::processingFinished, this, &MainWindow::onProcessingFinished);
     worker->moveToThread(thread);
+
     connect(thread, &QThread::started, worker, &Worker::processFile);
     connect(worker, &Worker::finished, this, &MainWindow::handleFinished);
     connect(worker, &Worker::finished, thread, &QThread::quit);
-    connect(worker, &Worker::progress, this, &MainWindow::setProgressValue);
+
     //connect(worker, &Worker::finished, worker, &Worker::deleteLater);
     //connect(thread, &QThread::finished, thread, &QThread::deleteLater);
     qRegisterMetaType<QVector<double>>("QVector<double>");
 
     connect(&progressUpdater, SIGNAL( timeout()), SLOT( updateProgressBar() ) );
+
+//    progressDialog = new QProgressDialog();
+//    progressDialog->setWindowModality(Qt::WindowModal);
+    // Retrieve the geometry of the main window
+    // Retrieve the geometry of the main window
+//    QMainWindow::showEvent(event);  // Call the base class implementation
+    // Connect the worker's signals to the MainWindow's slots
+//    connect(worker, &Worker::readingProgressUpdated, this, &MainWindow::onReadingProgressUpdated);
+//    connect(worker, &Worker::processingProgressUpdated, this, &MainWindow::onProcessingProgressUpdated);
+//    connect(worker, &Worker::workComplete, this, &MainWindow::onWorkComplete);
+
+    // Set the geometry (position and size) of the progress dialog
+//    progressDialog->setGeometry(progressDialogX, progressDialogY, progressDialogWidth, progressDialogHeight);
+
+
+//    progressDialog->setVisible(false);
+//    progressDialog->close();
 
     loadSettings();
 
@@ -50,6 +72,30 @@ MainWindow::MainWindow(QWidget *parent)
 MainWindow::~MainWindow()
 {
     delete ui;
+}
+
+void MainWindow::onProcessingFinished() {
+//    ui->CurrentWorkTime_2->setText("Processing Complete!");
+    qDebug() << "Processing Complete!";
+}
+
+void MainWindow::onReadingProgressUpdated(int value)
+{
+    progressDialog->setValue(value);
+    progressDialog->setLabelText("Reading file...");
+}
+
+void MainWindow::onProcessingProgressUpdated(int value)
+{
+    progressDialog->setValue(value);
+    progressDialog->setLabelText("Processing file...");
+}
+
+void MainWindow::onWorkComplete()
+{
+    progressDialog->setValue(100);
+    progressDialog->setLabelText("All work complete!");
+    progressDialog->close();
 }
 
 /// \brief Обработчик события рисования (paintEvent).
@@ -375,10 +421,20 @@ void MainWindow::on_choseButton_clicked()
 {
     outDir = QFileDialog::getExistingDirectory(0," Выберите папку, в которую хотите сохранить проект","");
     ui->outDir->setText(outDir);
+//    progressDialog->exec();
 }
 
 void MainWindow::on_convertButton_clicked()
 {
+
+//    progressDialog = new QProgressDialog();
+//    progressDialog->setWindowModality(Qt::WindowModal);
+//    progressDialog->setAutoClose(false);
+//    progressDialog->setAutoReset(false);
+
+//    worker->setupProgressDialog(progressDialog);
+//    worker->setupProgressBar(ui->convertProgress);
+
     QString file1 = ui->firstChanelFileName->text();
     QString file2 = ui->secondChanelFileName->text();
     QString file1Name, file2Name, file1Suffix, file2Suffix;
@@ -418,16 +474,18 @@ void MainWindow::on_convertButton_clicked()
         fullString = "txt";
     }
 
+
     settings.insert("format", fullString);
 
     worker->setup(settings);
     timerF.start();
-    ui->convertProgress->show();
+//    ui->convertProgress->show();
 //    ui->CurrentWorkTime_2->show();
     ui->convertProgress->setValue(0);
 //    worker->serupIn(inDir);
 //    worker->serupOut(outDir);
-    progressUpdater.start(500);
+//    progressUpdater.start(500);
+//    this->hide();
     thread->start();
 }
 
@@ -441,12 +499,14 @@ void MainWindow::handleFinished()
 {
     qDebug() << "The slow operation took" << timerF.elapsed() << "milliseconds";
     progressUpdater.stop();
+//    this->show();
 }
 
 void MainWindow::updateProgressBar()
 {
     size_t data = worker->getProcessProgress();
-    qDebug() << data;
+
+//    qDebug() << data;
     ui->convertProgress->setValue(data);
 }
 
@@ -595,4 +655,9 @@ void MainWindow::loadSettings()
 
 void MainWindow::setProgressValue(int value){
     ui->convertProgress->setValue(value);
+}
+
+void MainWindow::setRange(int min, int max)
+{
+    ui->convertProgress->setRange(min, max);
 }

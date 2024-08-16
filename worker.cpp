@@ -19,8 +19,18 @@ size_t totalSize;
 
 size_t Worker::getProcessProgress()
 {
-    qDebug() << readedData << totalSize << (readedData * 100 )/ totalSize << (readedData / totalSize) * 100;
+//    qDebug() << readedData << totalSize << (readedData * 100 )/ totalSize << ((readedData * 1.55) / totalSize) * 100;
     return static_cast<int>((static_cast<double>(readedData) / totalSize) * 100);
+}
+
+void Worker::setupProgressDialog(QProgressDialog *dialog)
+{
+//    m_dialog = dialog;
+}
+
+void Worker::setupProgressBar(QProgressBar *bar)
+{
+//    m_progressBar = bar;
 }
 
 
@@ -44,11 +54,11 @@ QList<QByteArray> readAndSplitFile(const QString& fileName, int step)
     const int blockSize = 1024; ///< Переменная, задающая размер блока
     qint64 counter = 0; ///< Счетчик, подсчитывающий номер читаемого блока
     QFile file(fileName);
-//    qDebug()<<"filename"<<fileName;
     if (!file.open(QIODevice::ReadOnly))///< Открываем файл для чтения и проверяем можем ли прочитать
     {
         qDebug() << "Error: Failed to open input file for reading!";
     }
+
     // Читаем файл блоками по 1024 байта
     while(!file.atEnd()){
         QByteArray block = file.read(blockSize);///< Читаем блок
@@ -62,6 +72,102 @@ QList<QByteArray> readAndSplitFile(const QString& fileName, int step)
     }
     file.close();
     qDebug() << "Time per byte:" << file.size()/(timer.elapsed()/1024) << "b/s"<<timer.elapsed();
+    return parts;
+}
+
+QList<QByteArray> Worker::readAndSplitFile1(const QString& fileName, int step)
+{
+    QElapsedTimer timer;
+    timer.start();
+    QList<QByteArray> parts;
+    const int blockSize = 1024;
+    qint64 counter = 0;
+    qint64 readedData = 0; // Track the total number of bytes read
+
+    QFile file(fileName);
+    if (!file.open(QIODevice::ReadOnly)) {
+        qDebug() << "Error: Failed to open input file for reading!";
+        return parts;
+    }
+
+    // Get the total size of the file
+    qint64 totalSize = file.size();
+    // Read the file in blocks of 1024 bytes
+    while (!file.atEnd()) {
+        QByteArray block = file.read(blockSize);
+        readedData += block.size(); // Increment the number of bytes read
+        counter++;
+
+        if (counter % step == 0) {
+            parts.append(block);
+        }
+
+        // Update the progress dialog
+        int progressValue = static_cast<int>((static_cast<double>(readedData) / totalSize) * 100);
+        emit readingProgressUpdated(progressValue);
+    }
+
+    file.close();
+    qDebug() << "Time per byte:" << file.size() / (timer.elapsed() / 1024) << "b/s" << timer.elapsed();
+    return parts;
+}
+
+QList<QByteArray> Worker::readAndSplitFile1(const QString& fileName, int step, QProgressDialog *progressDialog)
+{
+//    QElapsedTimer timer;
+//    timer.start();
+    QList<QByteArray> parts;
+    const int blockSize = 1024;
+    qint64 counter = 0;
+    qint64 readedData = 0; // Track the total number of bytes read
+
+    QFile file(fileName);
+    if (!file.open(QIODevice::ReadOnly)) {
+        qDebug() << "Error: Failed to open input file for reading!";
+        return parts;
+    }
+
+    // Get the total size of the file
+    qint64 totalSize = file.size();
+
+    // Configure the progress dialog
+    progressDialog->setLabelText("Reading file...");
+//    progressDialog->setRange(0, 100); // Set the range to 0-100 for percentage
+//    progressDialog->setValue(0);
+//    progressDialog->setAutoReset(false);
+//    progressDialog->setAutoClose(false);
+//    progressDialog->show();
+
+    // Read the file in blocks of 1024 bytes
+    while (!file.atEnd()) {
+        QByteArray block = file.read(blockSize);
+        readedData += block.size(); // Increment the number of bytes read
+        counter++;
+
+        if (counter % step == 0) {
+            parts.append(block);
+        }
+
+        // Update the progress dialog
+        int progressValue = static_cast<int>((static_cast<double>(readedData) / totalSize) * 100);
+        progressDialog->setValue(progressValue);
+
+        // Allow the UI to update
+        QCoreApplication::processEvents();
+
+        // Optionally, check if the dialog was canceled
+        if (progressDialog->wasCanceled()) {
+            qDebug() << "File reading was canceled.";
+            break;
+        }
+    }
+
+    file.close();
+    progressDialog->setValue(100); // Ensure the progress bar reaches 100%
+    progressDialog->setLabelText("File reading complete!");
+    progressDialog->close(); // Close the progress dialog when done
+
+//    qDebug() << "Time per byte:" << file.size() / (timer.elapsed() / 1024) << "b/s" << timer.elapsed();
     return parts;
 }
 
@@ -100,6 +206,9 @@ QList<QByteArray> readAndSplitFile(const QByteArray &data, int partSizeInMB) {
     return parts;
 }
 
+QAtomicInt readed(0);
+QMutex mutex;
+
 /*!
 \brief Обработчик части файла
 \param[in] chunk Часть данных АЦП
@@ -107,10 +216,13 @@ QList<QByteArray> readAndSplitFile(const QByteArray &data, int partSizeInMB) {
 */
 MyData partsProcess(const QByteArray &chunk){
     MyData d_out;
-    readedData += chunk.size();
+//    readedData++;    
+//    readed.fetchAndAddOrdered(1);  // Атомарное инкрементирование
+//    qDebug() << readedData << totalSize << readedData/totalSize;
+//    qDebug() << "part process";
     for (int i = 0; i < chunk.size(); i += 4) {///< Читаем по 4 байта
         // Extract the two 2-byte values from the chunk
-
+//        readedData += 1;
 //        qDebug() << readedData << totalSize << readedData/totalSize;
 //        Worker::progress(readedData/totalSize);
         int val1 = (chunk.at(i) << 8) | chunk.at(i + 1);
@@ -144,6 +256,10 @@ void reduce(MyData &result, const MyData &w){
 size_t calculateOptimalChunkSize(size_t freeMemoryMB, size_t numThreads, size_t fileSizeMB) {
     // Пример вычисления оптимального размера куска. Это можно настроить по мере необходимости.
     return std::min(fileSizeMB / numThreads, freeMemoryMB / numThreads);
+}
+
+void updateProgress(int progressValue) {
+    qDebug() << "Progress:" << progressValue << "%";
 }
 
 /*!
@@ -192,7 +308,6 @@ void Worker::processFile()
     //        std::cout << "Free physical memory: " << freePhysicalMemory / (1024 * 1024) << " MB" << std::endl;
 
         static const int THREAD_COUNT = QThread::idealThreadCount();
-    //        std::cout << "Ideal thread count: " << THREAD_COUNT << std::endl;
         // Делим на 3
         size_t dividedMemory = freePhysicalMemory / 3;
 
@@ -201,11 +316,6 @@ void Worker::processFile()
 
         // Доводим до ближайшего числа, кратного 1 МБ, в большую сторону
         size_t adjustedMemory = ((dividedMemory + oneMB - 1) / oneMB) * oneMB;
-
-    //        std::cout << "Free physical memory: " << freePhysicalMemory / (1024 * 1024) << " MB" << std::endl;
-    //        std::cout << "Adjusted memory size: " << adjustedMemory / (1024 * 1024) << " MB" << std::endl;
-    //        std::cout << "Chunk size: " << 6144 / (6144  / (adjustedMemory / (1024 * 1024) / 10)) << " MB" << std::endl;
-
         size_t freeMemoryMB = adjustedMemory / (1024 * 1024);  // Пример: 6 ГБ свободной памяти
         size_t numThreads = THREAD_COUNT - 2;       // Пример: 4 потока
         size_t fileSizeMB = file.size() / (1024 * 1024);   // Пример: 20 ГБ файл
@@ -216,11 +326,21 @@ void Worker::processFile()
 
         size_t partSizeInBytes = optimalChunkSizeMB * 1024 * 1024;  // размер части в байтах
         size_t readChunkSize = partSizeInBytes * (THREAD_COUNT - 2);  // размер считываемого куска в байтах
-    //    qDebug() << "readChunkSize" << readChunkSize;
 
         while(!file.atEnd()){
+
             /// \brief Инициализация синхронизатора для ожидания завершения выполнения задач.
-            QFutureSynchronizer<void> synchronizer;
+            QFutureWatcher<MyData> watcher;
+            // Подключение сигналов и слотов
+//            QObject::connect(&watcher, &QFutureWatcher<MyData>::finished, m_dialog, &QProgressDialog::reset);
+//            QObject::connect(m_dialog, &QProgressDialog::canceled, &watcher, &QFutureWatcher<MyData>::cancel);
+//            QObject::connect(&watcher, &QFutureWatcher<MyData>::progressRangeChanged, this, &Worker::progressRangeChanged);
+//            QObject::connect(&watcher, &QFutureWatcher<MyData>::progressValueChanged, this, &Worker::progressValueChanged);
+
+//            connect(watcher, &QFutureWatcher<MyData>::progressRangeChanged, &dialog, &QProgressDialog::setRange);
+//            connect(watcher, &QFutureWatcher<MyData>::progressValueChanged, &dialog, &QProgressDialog::setValue);
+
+
 
             size_t readSize = 512 ;//1*1024
 
@@ -229,14 +349,23 @@ void Worker::processFile()
             QByteArray data = file.read(readSize*1024*1024);
 
             /// \brief Чтение и разделение входного файла на массив байт.
-            QList<QByteArray> BAlist = readAndSplitFile(data, readSize/10);
+            QList<QByteArray> BAlist = readAndSplitFile(data, readSize/4);
     //        qDebug()<<BAlist.size();
 
             /// \brief Создание и запуск задачи в фоновом режиме для обработки данных.
-            QFuture<MyData> future = QtConcurrent::mappedReduced(BAlist,partsProcess,reduce);
+            QFuture<MyData> future = QtConcurrent::mappedReduced(BAlist,partsProcess,reduce);            
+
+            watcher.setFuture(future);
+
+            qDebug() << watcher.progressValue();
+
+//            m_dialog->exec();
+
+//            QFutureSynchronizer<void> synchronizer;
             // Дождаться окончания выполнения
-            synchronizer.addFuture(future);
-            synchronizer.waitForFinished();
+//            synchronizer.addFuture(future);
+//            synchronizer.waitForFinished();
+            watcher.waitForFinished();
 
             /// \brief Получение результата выполнения задачи.
             const MyData result = future.result();
@@ -321,8 +450,10 @@ void Worker::processFile()
     }
     else
     {
+//        QCoreApplication::processEvents();
         /// \brief Вывод информации о директории входного файла.
         qDebug()<<"Директория входного файла"<<inFilePath1;
+//        m_dialog->close();
 
         /// \brief Проверка существования входного файла.
         if (!QFile::exists(inFilePath1)) {
@@ -335,17 +466,38 @@ void Worker::processFile()
         totalSize = file.size();
 
         /// \brief Инициализация синхронизатора для ожидания завершения выполнения задач.
-        QFutureSynchronizer<void> synchronizer;
+//        QFutureSynchronizer<void> synchronizer;
+        QFutureWatcher<MyData> watcher;
+//        m_dialog = new QProgressDialog();
+//        QObject::connect(&watcher, &QFutureWatcher<MyData>::finished, m_dialog, &QProgressDialog::reset);
+//        QObject::connect(m_dialog, &QProgressDialog::canceled, &watcher, &QFutureWatcher<MyData>::cancel);
+//        QObject::connect(&watcher, &QFutureWatcher<MyData>::progressRangeChanged, this, &Worker::progressRangeChanged);
+//        QObject::connect(&watcher, &QFutureWatcher<MyData>::progressValueChanged, this, &Worker::progressValueChanged);
+
+//        QObject::connect(&watcher, &QFutureWatcher<MyData>::progressRangeChanged, m_dialog, &QProgressDialog::setRange);
+//        QObject::connect(&watcher, &QFutureWatcher<MyData>::progressValueChanged, m_dialog, &QProgressDialog::setValue);
+
+
+//        QObject::connect(&watcher, &QFutureWatcher<MyData>::progressRangeChanged, m_progressBar, &QProgressBar::setRange);
+//        QObject::connect(&watcher, &QFutureWatcher<MyData>::progressValueChanged, m_progressBar, &QProgressBar::setValue);
+//        QObject::connect(&watcher, &QFutureWatcher<MyData>::finished, this, &Worker::onProcessingFinished);
 
         /// \brief Чтение и разделение входного файла на массив байт.
-        QList<QByteArray> BAlist = readAndSplitFile(inFilePath1, 100/STEP);
+        QList<QByteArray> BAlist = readAndSplitFile1(inFilePath1, 100/STEP);
         qDebug()<<BAlist.size();
 
         /// \brief Создание и запуск задачи в фоновом режиме для обработки данных.
         QFuture<MyData> future = QtConcurrent::mappedReduced(BAlist,partsProcess,reduce);
         // Дождаться окончания выполнения
-        synchronizer.addFuture(future);
-        synchronizer.waitForFinished();
+//        synchronizer.addFuture(future);
+//        synchronizer.waitForFinished();
+        watcher.setFuture(future);
+
+//        m_dialog->setVisible(false);
+//        m_dialog->show();
+//        m_dialog->setVisible(false);
+
+        watcher.waitForFinished();
 
         /// \brief Получение результата выполнения задачи.
         const MyData result = future.result();
@@ -423,6 +575,7 @@ void Worker::processFile()
     /// \brief Сигнал о завершении выполнения операции.
     readedData = 0;
     emit finished();
+//    emit workComplete();
 }
 
 /*!
@@ -553,6 +706,30 @@ void Worker::setup(QMap<QString,QString> settings)
     outFile1Suffix = settings["file1Suffix"];
     outFile2Suffix = settings["file2Suffix"];
     format = settings["format"];
+}
+
+void Worker::checkProgress(int progress)
+{
+    qDebug() << progress;
+}
+
+void Worker::progressRangeChanged(int min, int max)
+{
+    _min = min;
+    _max = max;
+    emit range(min, max);
+}
+
+void Worker::progressValueChanged(int progr)
+{
+    _value = progr;
+    qDebug() << _value;
+    emit progress(progr);
+}
+
+void Worker::onProcessingFinished()
+{
+    emit processingFinished();  // Signal to MainWindow that processing is finished
 }
 
 void Worker::setProgress(int data){

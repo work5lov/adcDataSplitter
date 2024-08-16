@@ -15,6 +15,11 @@
 #include <QFuture>
 #include <QFutureWatcher>
 #include <QtConcurrent>
+#include <QAtomicInt>
+#include <QMutex>
+#include <QMutexLocker>
+#include <QProgressDialog>
+#include <QProgressBar>
 #include "functions.h"
 
 struct MyData {
@@ -30,6 +35,11 @@ class Worker : public QObject
 public:
     Worker();
     size_t getProcessProgress();
+    void setupProgressDialog(QProgressDialog *dialog);
+    void setupProgressBar(QProgressBar *bar);
+    size_t getMin();
+    size_t getMax();
+    size_t getValue();
     //double STEP;
 
 public slots:
@@ -42,6 +52,13 @@ public slots:
     void serupIn(QString in);
     void serupOut(QString out);
     void setup(QMap<QString,QString> settings);
+    void checkProgress(int progress);
+    void progressRangeChanged(int min, int max);
+    void progressValueChanged(int progress);
+    void onProcessingFinished();
+
+
+//    void updateProgress(int progressValue);
 //    MyData partsProcess(const QByteArray &chunk);
 //    double STEP;
 
@@ -51,9 +68,20 @@ signals:
     void setFileIn(QString in);///< Сигнал для передачи пути входного файла \warning Не используется.
     void setFileOut(QString out);///< Сигнал для передачи директории выходных файлова \warning Не используется.
     void elapsedTimer(QString str);///< Сигнал для передачи времени выполнения обработки файла \warning Не используется.
+    void range(int min, int max);
+    void processingFinished();
+
+    void readingProgressUpdated(int value);  // Signal for reading progress
+    void processingProgressUpdated(int value);  // Signal for processing progress
+    void fileReadComplete();                 // Signal when file reading is complete
+    void processingComplete();               // Signal when processing is complete
+    void workComplete();
+
 
 private slots:
     float convertFunc(float data);
+    QList<QByteArray> readAndSplitFile1(const QString& fileName, int step);
+    QList<QByteArray> readAndSplitFile1(const QString& fileName, int step, QProgressDialog *progressDialog);
 //    void serupIn(QString in);
 //    void serupOut(QString out);
 
@@ -75,6 +103,13 @@ private:
     QString format;
 
     static void setProgress(int data);
+
+    QProgressDialog *m_dialog;
+    QProgressBar *m_progressBar;
+
+    size_t _min;
+    size_t _max;
+    size_t _value;
 };
 
 #endif // WORKER_H
