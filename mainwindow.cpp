@@ -67,6 +67,9 @@ MainWindow::MainWindow(QWidget *parent)
 
     loadSettings();
 
+//    qDebug() << sizeof (double);
+//    qDebug() << sizeof (int);
+
 }
 
 MainWindow::~MainWindow()

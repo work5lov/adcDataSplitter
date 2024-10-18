@@ -193,18 +193,39 @@ QList<QByteArray> splitData(const QByteArray &data, uint8_t parts) {
     return result;
 }
 
-QList<QByteArray> readAndSplitFile(const QByteArray &data, int partSizeInMB) {
+QList<QByteArray> readAndSplitFile(const QByteArray &data, size_t partSizeInMB, int percent) {
     QList<QByteArray> parts;
-    int partSizeInBytes = partSizeInMB * 1024 * 1024;  // перевод размера в мегабайтах в байты
-    int totalSize = data.size();
 
-    for (int i = 0; i < totalSize; i += partSizeInBytes) {
-        parts.append(data.mid(i, partSizeInBytes));
+    if (percent <= 0 || percent > 100) {
+        qDebug() << "Error: Invalid percentage. It must be between 1 and 100.";
+        return parts;
     }
-//    qDebug() << parts;
+
+//    int64_t partSizeInBytes = static_cast<int64_t>(partSizeInMB * 1024 * 1024);  // Перевод размера в мегабайты в байты
+    int64_t totalSize = data.size();  // Общий размер данных
+
+//    qDebug() << partSizeInMB << 10 * partSizeInMB * 1024*1024;
+
+    int step = 1;
+
+    int bytesRead = 0;
+    int count = 0;
+
+//    qDebug () << targetBytes << totalBlocks << step << totalSize << percent;
+
+    for (int i = 0; i < totalSize; i += partSizeInMB) {
+        // Чтение каждого step-го блока данных
+        if (count % step == 0) {
+            QByteArray block = data.mid(i, partSizeInMB);
+            parts.append(block);
+            bytesRead += block.size();  // Увеличиваем счётчик прочитанных байт
+        }
+        count++;
+    }
 
     return parts;
 }
+
 
 QAtomicInt readed(0);
 QMutex mutex;
@@ -228,8 +249,8 @@ MyData partsProcess(const QByteArray &chunk){
         int val1 = (chunk.at(i) << 8) | chunk.at(i + 1);
         int val2 = (chunk.at(i + 2) << 8) | chunk.at(i + 3);
         val1 = val1 & 0x00000000000ffff;
-        int16_t b1 = qToBigEndian<qint16>(val1);
-        int16_t b2 = qToBigEndian<qint16>(val2);
+        int16_t b1 = qToBigEndian<int16_t>(val1);
+        int16_t b2 = qToBigEndian<int16_t>(val2);
         // Convert the values to volts
         float volts1 = convertF(b1);
         float volts2 = convertF(b2);
@@ -243,7 +264,7 @@ MyData partsProcess(const QByteArray &chunk){
 }
 
 /*!
-\brief Обработчик части файла
+\brief Сборщик частей в единый "массив"
 \param[in] w Значения АЦП одной части исходного файла
 \param[out] result Собранные данные АЦП всех обработанных частей
 */
@@ -278,60 +299,146 @@ void updateProgress(int progressValue) {
 */
 void Worker::processFile()
 {
-    if(STEP == 100){
-        qDebug()<<"Директория входного файла"<<inFilePath1;
-        /// \brief Проверка существования входного файла.
-        if (!QFile::exists(inFilePath1)) {
-            qDebug() << "Error: Input file does not exist!";
-            return;
-        }
 
-        QFile file(inFilePath1);
+    /*qDebug()<<"Директория входного файла"<<inFilePath1;
 
-        if (!file.open(QIODevice::ReadOnly)) {
-            qWarning() << "Could not open file" << inFilePath1;
-    //        return parts;
-        }
+    /// \brief Проверка существования входного файла.
+    if (!QFile::exists(inFilePath1)) {
+        qDebug() << "Error: Input file does not exist!";
+        return;
+    }
 
-        MEMORYSTATUSEX statex;
-        statex.dwLength = sizeof(statex);
-        DWORDLONG freePhysicalMemory;
+    QFile file(inFilePath1);
 
-        if (GlobalMemoryStatusEx(&statex)) {
-            // Получение объема свободной физической памяти и вывод в мегабайтах
-            freePhysicalMemory = statex.ullAvailPhys;
-    //            std::cout << "Free physical memory: " << freePhysicalMemory  << " MB" << std::endl;
-        } else {
-            std::cerr << "Error getting memory status: " << GetLastError() << std::endl;
-        }
+    /// \brief Инициализация синхронизатора для ожидания завершения выполнения задач.
+    QFutureSynchronizer<void> synchronizer;
 
-    //        std::cout << "Free physical memory: " << freePhysicalMemory / (1024 * 1024) << " MB" << std::endl;
+    /// \brief Чтение и разделение входного файла на массив байт.
+    QList<QByteArray> BAlist = readAndSplitFile(inFilePath1);
+    qDebug()<<BAlist.size();
 
-        static const int THREAD_COUNT = QThread::idealThreadCount();
-        // Делим на 3
-        size_t dividedMemory = freePhysicalMemory / 3;
+    /// \brief Создание и запуск задачи в фоновом режиме для обработки данных.
+    QFuture<MyData> future = QtConcurrent::mappedReduced(BAlist,partsProcess,reduce);
+    // Дождаться окончания выполнения
+    synchronizer.addFuture(future);
+    synchronizer.waitForFinished();
 
-        // Константа для 1 мегабайта
-        const size_t oneMB = 1024 * 1024;
+    /// \brief Получение результата выполнения задачи.
+    const MyData result = future.result();
 
-        // Доводим до ближайшего числа, кратного 1 МБ, в большую сторону
-        size_t adjustedMemory = ((dividedMemory + oneMB - 1) / oneMB) * oneMB;
-        size_t freeMemoryMB = adjustedMemory / (1024 * 1024);  // Пример: 6 ГБ свободной памяти
-        size_t numThreads = THREAD_COUNT - 2;       // Пример: 4 потока
-        size_t fileSizeMB = file.size() / (1024 * 1024);   // Пример: 20 ГБ файл
+    /// \brief Создаем объект QFileInfo, используя путь к файлу
+    QFileInfo fileInfo(inFilePath1);
 
-        totalSize = file.size();
+    /// \brief Извлекаем имя файла без расширения
+    QString fileNameWithoutExtension = fileInfo.baseName();
 
-        size_t optimalChunkSizeMB = calculateOptimalChunkSize(freeMemoryMB, numThreads, fileSizeMB);
+    /// \brief Генерация путей к выходным файлам с уникальными временными метками.
+    QString outFile1Path = outDir + "/ADCch_1_" + fileNameWithoutExtension + ".bin";
+    QString outFile2Path = outDir + "/ADCch_2_" + fileNameWithoutExtension + ".bin";
 
-        size_t partSizeInBytes = optimalChunkSizeMB * 1024 * 1024;  // размер части в байтах
-        size_t readChunkSize = partSizeInBytes * (THREAD_COUNT - 2);  // размер считываемого куска в байтах
+    /// \brief Создание выходных файлов.
+    QFile outFile1(outFile1Path);
+    QFile outFile2(outFile2Path);
 
-        while(!file.atEnd()){
+    /// \brief Создание потоков данных для записи в выходные файлы в формате Little Endian.
+    QDataStream outStream1(&outFile1);
+    QDataStream outStream2(&outFile2);
+    outStream1.setByteOrder(QDataStream::LittleEndian);
+    outStream2.setByteOrder(QDataStream::LittleEndian);
 
-            /// \brief Инициализация синхронизатора для ожидания завершения выполнения задач.
-            QFutureWatcher<MyData> watcher;
-            // Подключение сигналов и слотов
+    /// \brief Проверка успешного открытия выходного файла 1 для записи.
+    if (!outFile1.open(QIODevice::WriteOnly)) {
+        qDebug() << "Error: Failed to open output file 1 for writing!";
+        return;
+    }
+
+    /// \brief Проверка успешного открытия выходного файла 2 для записи.
+    if (!outFile2.open(QIODevice::WriteOnly)) {
+        qDebug() << "Error: Failed to open output file 2 for writing!";
+        return;
+    }
+    /// \brief Запись данных в выходные файлы.
+    for (float volts : qAsConst(result.data1)) {
+        outStream1.writeRawData(reinterpret_cast<const char*>(&volts), sizeof(float));
+    }
+    for (float volts : qAsConst(result.data2)) {
+        outStream2.writeRawData(reinterpret_cast<const char*>(&volts), sizeof(float));
+    }
+
+    /// \brief Закрытие выходных файлов.
+    outFile1.close();
+    outFile2.close();*/
+
+    qDebug()<<"Директория входного файла"<<inFilePath1;
+    /// \brief Проверка существования входного файла.
+    if (!QFile::exists(inFilePath1)) {
+        qDebug() << "Error: Input file does not exist!";
+        return;
+    }
+
+    QFile file(inFilePath1);
+
+    if (!file.open(QIODevice::ReadOnly)) {
+        qWarning() << "Could not open file" << inFilePath1;
+//        return parts;
+    }
+
+    MEMORYSTATUSEX statex;
+    statex.dwLength = sizeof(statex);
+    DWORDLONG freePhysicalMemory;
+
+    if (GlobalMemoryStatusEx(&statex)) {
+        // Получение объема свободной физической памяти и вывод в мегабайтах
+        freePhysicalMemory = statex.ullAvailPhys;
+//            std::cout << "Free physical memory: " << freePhysicalMemory  << " MB" << std::endl;
+    } else {
+        std::cerr << "Error getting memory status: " << GetLastError() << std::endl;
+    }
+
+//        std::cout << "Free physical memory: " << freePhysicalMemory / (1024 * 1024) << " MB" << std::endl;
+
+    static const int THREAD_COUNT = QThread::idealThreadCount();
+    // Делим на 3
+    size_t dividedMemory = freePhysicalMemory / 3;
+
+    // Константа для 1 мегабайта
+    const size_t oneMB = 1024 * 1024;
+
+    // Доводим до ближайшего числа, кратного 1 МБ, в большую сторону
+    size_t adjustedMemory = ((dividedMemory + oneMB - 1) / oneMB) * oneMB;
+    size_t freeMemoryMB = adjustedMemory / (1024 * 1024);  // Пример: 6 ГБ свободной памяти
+    size_t numThreads = THREAD_COUNT - 2;       // Пример: 4 потока
+    size_t fileSizeMB = file.size() / (1024 * 1024);   // Пример: 20 ГБ файл
+
+    totalSize = file.size();
+
+    size_t optimalChunkSizeMB = calculateOptimalChunkSize(freeMemoryMB, numThreads, fileSizeMB);
+
+    size_t partSizeInBytes = optimalChunkSizeMB * 1024 * 1024;  // размер части в байтах
+    size_t readChunkSize = partSizeInBytes * (THREAD_COUNT - 2);  // размер считываемого куска в байтах
+
+    size_t readSize = 1024 * 128;//1*1024 C:/LezhnevV/Qt/build-consolSignalGenerator-Desktop_Qt_5_12_12_MinGW_32_bit-Debug
+
+//    if(totalSize < 1 * 1024 * oneMB)
+//    {
+//        readSize = 0.001*totalSize;
+//    }
+//    else
+//    {
+//        readSize = 8 * oneMB;
+//    }
+
+    size_t stepBlocks = static_cast<size_t>(100.0 / STEP) - 1;
+    size_t stepSize = readSize * stepBlocks; // Шаг пропуска между чтениями
+
+//    qDebug() << stepBlocks << stepSize;
+
+    while(!file.atEnd()){
+
+        /// \brief Инициализация синхронизатора для ожидания завершения выполнения задач.
+//        QFutureWatcher<MyData> watcher;
+        QFutureSynchronizer<void> synchronizer;
+        // Подключение сигналов и слотов
 //            QObject::connect(&watcher, &QFutureWatcher<MyData>::finished, m_dialog, &QProgressDialog::reset);
 //            QObject::connect(m_dialog, &QProgressDialog::canceled, &watcher, &QFutureWatcher<MyData>::cancel);
 //            QObject::connect(&watcher, &QFutureWatcher<MyData>::progressRangeChanged, this, &Worker::progressRangeChanged);
@@ -342,165 +449,55 @@ void Worker::processFile()
 
 
 
-            size_t readSize = 512 ;//1*1024
-
 //            progress(fileSizeMB);
 
-            QByteArray data = file.read(readSize*1024*1024);
+//        qDebug() << "filePosition" << file.pos();
 
-            /// \brief Чтение и разделение входного файла на массив байт.
-            QList<QByteArray> BAlist = readAndSplitFile(data, readSize/4);
-    //        qDebug()<<BAlist.size();
+        QByteArray data = file.read(readSize);
 
-            /// \brief Создание и запуск задачи в фоновом режиме для обработки данных.
-            QFuture<MyData> future = QtConcurrent::mappedReduced(BAlist,partsProcess,reduce);            
+        double partSizeInMb = readSize / 8;
 
-            watcher.setFuture(future);
+//        qDebug() << readSize << partSizeInMb;
 
-            qDebug() << watcher.progressValue();
+        /// \brief Чтение и разделение входного файла на массив байт.
+        QList<QByteArray> BAlist = readAndSplitFile(data, partSizeInMb, STEP);
+//        qDebug()<<BAlist.size();
+
+        /// \brief Создание и запуск задачи в фоновом режиме для обработки данных.
+        QFuture<MyData> future = QtConcurrent::mappedReduced(BAlist, partsProcess, reduce);
+
+//        watcher.setFuture(future);
+
+//        qDebug() << watcher.progressValue();
 
 //            m_dialog->exec();
 
 //            QFutureSynchronizer<void> synchronizer;
-            // Дождаться окончания выполнения
-//            synchronizer.addFuture(future);
-//            synchronizer.waitForFinished();
-            watcher.waitForFinished();
-
-            /// \brief Получение результата выполнения задачи.
-            const MyData result = future.result();
-
-            // Вычисление текущего прогресса
-            /*qint64 processedSize = file.pos(); // Размер уже обработанных данных
-            int progressT = static_cast<int>((static_cast<double>(processedSize) / totalSize) * 100);
-
-            // Обновление прогресса
-            emit progress(progressT)*/;
-
-            /// \brief Создаем объект QFileInfo, используя путь к файлу
-            QFileInfo fileInfo(inFilePath1);
-
-            /// \brief Извлекаем имя файла без расширения
-            QString fileNameWithoutExtension = fileInfo.baseName();
-
-            /// \brief Генерация путей к выходным файлам с уникальными временными метками.
-            QString outFile1Path = outDir + "/" + outFile1Name + fileNameWithoutExtension + "." + format;
-            QString outFile2Path = outDir + "/" + outFile2Name + fileNameWithoutExtension + "." + format;
-
-            /// \brief Создание выходных файлов.
-            QFile outFile1(outFile1Path);
-            QFile outFile2(outFile2Path);
-
-            /// \brief Создание потоков данных для записи в выходные файлы в формате Little Endian.
-            QDataStream outStream1(&outFile1);
-            QDataStream outStream2(&outFile2);
-            outStream1.setByteOrder(QDataStream::LittleEndian);
-            outStream2.setByteOrder(QDataStream::LittleEndian);
-
-            /// \brief Проверка успешного открытия выходного файла 1 для записи.
-            if (!outFile1.open(QIODevice::Append)) {
-                qDebug() << "Error: Failed to open output file 1 for writing!";
-                return;
-            }
-
-            /// \brief Проверка успешного открытия выходного файла 2 для записи.
-            if (!outFile2.open(QIODevice::Append)) {
-                qDebug() << "Error: Failed to open output file 2 for writing!";
-                return;
-            }
-            /// \brief Запись данных в выходные файлы.
-            if (format == "bin") {
-                // Запись в бинарные файлы с использованием QDataStream
-                QDataStream outStream1(&outFile1);
-                QDataStream outStream2(&outFile2);
-
-                outStream1.setByteOrder(QDataStream::LittleEndian);
-                outStream2.setByteOrder(QDataStream::LittleEndian);
-
-                for (float volts : qAsConst(result.data1)) {
-                    outStream1.writeRawData(reinterpret_cast<const char*>(&volts), sizeof(float));
-                }
-
-                for (float volts : qAsConst(result.data2)) {
-                    outStream2.writeRawData(reinterpret_cast<const char*>(&volts), sizeof(float));
-                }
-            } else {
-                // Запись в текстовые файлы с использованием QTextStream
-                QTextStream outStream1(&outFile1);
-                QTextStream outStream2(&outFile2);
-
-
-                for (float volts : qAsConst(result.data1)) {
-                    outStream1 << volts << "\n";
-                }
-
-                outFile1.flush();
-
-                for (float volts : qAsConst(result.data2)) {
-                    outStream2 << volts << "\n";
-                }
-
-                outFile1.flush();
-            }
-
-            /// \brief Закрытие выходных файлов.
-            outFile1.close();
-            outFile2.close();
-        }
-    }
-    else
-    {
-//        QCoreApplication::processEvents();
-        /// \brief Вывод информации о директории входного файла.
-        qDebug()<<"Директория входного файла"<<inFilePath1;
-//        m_dialog->close();
-
-        /// \brief Проверка существования входного файла.
-        if (!QFile::exists(inFilePath1)) {
-            qDebug() << "Error: Input file does not exist!";
-            return;
-        }
-
-        QFile file(inFilePath1);
-
-        totalSize = file.size();
-
-        /// \brief Инициализация синхронизатора для ожидания завершения выполнения задач.
-//        QFutureSynchronizer<void> synchronizer;
-        QFutureWatcher<MyData> watcher;
-//        m_dialog = new QProgressDialog();
-//        QObject::connect(&watcher, &QFutureWatcher<MyData>::finished, m_dialog, &QProgressDialog::reset);
-//        QObject::connect(m_dialog, &QProgressDialog::canceled, &watcher, &QFutureWatcher<MyData>::cancel);
-//        QObject::connect(&watcher, &QFutureWatcher<MyData>::progressRangeChanged, this, &Worker::progressRangeChanged);
-//        QObject::connect(&watcher, &QFutureWatcher<MyData>::progressValueChanged, this, &Worker::progressValueChanged);
-
-//        QObject::connect(&watcher, &QFutureWatcher<MyData>::progressRangeChanged, m_dialog, &QProgressDialog::setRange);
-//        QObject::connect(&watcher, &QFutureWatcher<MyData>::progressValueChanged, m_dialog, &QProgressDialog::setValue);
-
-
-//        QObject::connect(&watcher, &QFutureWatcher<MyData>::progressRangeChanged, m_progressBar, &QProgressBar::setRange);
-//        QObject::connect(&watcher, &QFutureWatcher<MyData>::progressValueChanged, m_progressBar, &QProgressBar::setValue);
-//        QObject::connect(&watcher, &QFutureWatcher<MyData>::finished, this, &Worker::onProcessingFinished);
-
-        /// \brief Чтение и разделение входного файла на массив байт.
-        QList<QByteArray> BAlist = readAndSplitFile1(inFilePath1, 100/STEP);
-        qDebug()<<BAlist.size();
-
-        /// \brief Создание и запуск задачи в фоновом режиме для обработки данных.
-        QFuture<MyData> future = QtConcurrent::mappedReduced(BAlist,partsProcess,reduce);
         // Дождаться окончания выполнения
-//        synchronizer.addFuture(future);
-//        synchronizer.waitForFinished();
-        watcher.setFuture(future);
+        synchronizer.addFuture(future);
+        synchronizer.waitForFinished();
+//        watcher.waitForFinished();
 
-//        m_dialog->setVisible(false);
-//        m_dialog->show();
-//        m_dialog->setVisible(false);
+        // Проверка успешного завершения задачи
+        if (future.isCanceled()) {
+            qDebug() << "Task was canceled.";
+            return;  // Завершаем выполнение, если задача была отменена
+        }
 
-        watcher.waitForFinished();
+        if (!future.isFinished()) {
+            qDebug() << "Task did not finish successfully.";
+            return;  // Завершаем выполнение, если задача не завершилась успешно
+        }
 
         /// \brief Получение результата выполнения задачи.
         const MyData result = future.result();
+
+        // Вычисление текущего прогресса
+        /*qint64 processedSize = file.pos(); // Размер уже обработанных данных
+        int progressT = static_cast<int>((static_cast<double>(processedSize) / totalSize) * 100);
+
+        // Обновление прогресса
+        emit progress(progressT)*/;
 
         /// \brief Создаем объект QFileInfo, используя путь к файлу
         QFileInfo fileInfo(inFilePath1);
@@ -516,23 +513,31 @@ void Worker::processFile()
         QFile outFile1(outFile1Path);
         QFile outFile2(outFile2Path);
 
+        if (!file.atEnd()) {
+            file.seek(file.pos() + stepSize);
+        }
+
         /// \brief Создание потоков данных для записи в выходные файлы в формате Little Endian.
-        QDataStream outStream1(&outFile1);
-        QDataStream outStream2(&outFile2);
-        outStream1.setByteOrder(QDataStream::LittleEndian);
-        outStream2.setByteOrder(QDataStream::LittleEndian);
+//        QDataStream outStream1(&outFile1);
+//        QDataStream outStream2(&outFile2);
+//        outStream1.setByteOrder(QDataStream::LittleEndian);
+//        outStream2.setByteOrder(QDataStream::LittleEndian);
 
         /// \brief Проверка успешного открытия выходного файла 1 для записи.
-        if (!outFile1.open(QIODevice::WriteOnly)) {
+        if (!outFile1.open(QIODevice::Append)) {
             qDebug() << "Error: Failed to open output file 1 for writing!";
             return;
         }
 
         /// \brief Проверка успешного открытия выходного файла 2 для записи.
-        if (!outFile2.open(QIODevice::WriteOnly)) {
+        if (!outFile2.open(QIODevice::Append)) {
             qDebug() << "Error: Failed to open output file 2 for writing!";
             return;
         }
+
+        // Вычисляем шаг
+        size_t stepIndex = /*static_cast<size_t>(100.0 / STEP)*/ 1;
+
         /// \brief Запись данных в выходные файлы.
         if (format == "bin") {
             // Запись в бинарные файлы с использованием QDataStream
@@ -540,36 +545,52 @@ void Worker::processFile()
             QDataStream outStream2(&outFile2);
 
             outStream1.setByteOrder(QDataStream::LittleEndian);
-            outStream2.setByteOrder(QDataStream::LittleEndian);
+            outStream2.setByteOrder(QDataStream::LittleEndian);            
 
-            for (float volts : qAsConst(result.data1)) {
-                outStream1.writeRawData(reinterpret_cast<const char*>(&volts), sizeof(float));
+            // Запись данных с шагом для первого файла
+            for (size_t i = 0; i < result.data1.size(); i++) {
+                if (i % stepIndex == 0) {
+                    float volts = result.data1[i];
+                    outStream1.writeRawData(reinterpret_cast<const char*>(&volts), sizeof(float));
+                }
             }
 
-            for (float volts : qAsConst(result.data2)) {
-                outStream2.writeRawData(reinterpret_cast<const char*>(&volts), sizeof(float));
+            // Запись данных с шагом для второго файла
+            for (size_t i = 0; i < result.data2.size(); i++) {
+                if (i % stepIndex == 0) {
+                    float volts = result.data2[i];
+                    outStream2.writeRawData(reinterpret_cast<const char*>(&volts), sizeof(float));
+                }
             }
         } else {
             // Запись в текстовые файлы с использованием QTextStream
             QTextStream outStream1(&outFile1);
             QTextStream outStream2(&outFile2);
 
-            for (float volts : qAsConst(result.data1)) {
-                outStream1 << volts << "\n";
+            for (size_t i = 0; i < result.data1.size(); i++) {
+                if (i % stepIndex == 0) {
+                    float volts = result.data1[i];
+                     outStream1 << volts << "\n";
+                }
             }
 
             outFile1.flush();
 
-            for (float volts : qAsConst(result.data2)) {
-                outStream2 << volts << "\n";
+            for (size_t i = 0; i < result.data1.size(); i++) {
+                if (i % stepIndex == 0) {
+                    float volts = result.data1[i];
+                     outStream2 << volts << "\n";
+                }
             }
 
-            outFile1.flush();
+            outFile2.flush();
         }
 
         /// \brief Закрытие выходных файлов.
         outFile1.close();
         outFile2.close();
+
+
     }
 
     /// \brief Сигнал о завершении выполнения операции.
