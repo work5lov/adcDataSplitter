@@ -380,7 +380,6 @@ void Worker::processFile()
 
     if (!file.open(QIODevice::ReadOnly)) {
         qWarning() << "Could not open file" << inFilePath1;
-//        return parts;
     }
 
     MEMORYSTATUSEX statex;
@@ -413,11 +412,9 @@ void Worker::processFile()
     totalSize = file.size();
 
     size_t optimalChunkSizeMB = calculateOptimalChunkSize(freeMemoryMB, numThreads, fileSizeMB);
-
     size_t partSizeInBytes = optimalChunkSizeMB * 1024 * 1024;  // размер части в байтах
     size_t readChunkSize = partSizeInBytes * (THREAD_COUNT - 2);  // размер считываемого куска в байтах
-
-    size_t readSize = 1024 * 128;//1*1024 C:/LezhnevV/Qt/build-consolSignalGenerator-Desktop_Qt_5_12_12_MinGW_32_bit-Debug
+    size_t readSize = 1024 * 128;//1*1024
 
 //    if(totalSize < 1 * 1024 * oneMB)
 //    {
@@ -446,8 +443,6 @@ void Worker::processFile()
 
 //            connect(watcher, &QFutureWatcher<MyData>::progressRangeChanged, &dialog, &QProgressDialog::setRange);
 //            connect(watcher, &QFutureWatcher<MyData>::progressValueChanged, &dialog, &QProgressDialog::setValue);
-
-
 
 //            progress(fileSizeMB);
 
@@ -589,8 +584,6 @@ void Worker::processFile()
         /// \brief Закрытие выходных файлов.
         outFile1.close();
         outFile2.close();
-
-
     }
 
     /// \brief Сигнал о завершении выполнения операции.
